@@ -1,0 +1,1 @@
+export const colors = { primary: '#FF7B00', white: '#FFF', black: '#000' };
