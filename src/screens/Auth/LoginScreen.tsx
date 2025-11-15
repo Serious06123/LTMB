@@ -1,20 +1,59 @@
+// Trong file: src/screens/Auth/LoginScreen.tsx
+
 import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
+// Import hook useNavigation và type
+import { useNavigation } from '@react-navigation/native';
+import { AppNavigationProp } from '../../app/navigationTypes.ts'; // (Hãy đảm bảo bạn đã tạo file này)
+
+// Import component và logic
+import PrimaryButton from '../../components/button/PrimaryButton'; // (Hãy đảm bảo bạn đã tạo file này)
+import authService from '../../services/authService'; // Import default
+import { useDispatch } from 'react-redux';
+import { setToken } from '../../features/general/generalSlice';
+import { colors } from '../../theme';
+
 export default function LoginScreen() {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('test@gmail.com');
+  const [password, setPassword] = useState<string>('123456');
   const [secure, setSecure] = useState<boolean>(true);
   const [remember, setRemember] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const navigation = useNavigation<AppNavigationProp>();
+  const dispatch = useDispatch();
+
+  // Hàm xử lý logic
+  const handleLoginPress = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    // Gọi hàm logic từ đối tượng authService
+    const result = await authService.loginApi(email, password);
+
+    setIsLoading(false);
+
+    if (result.success) {
+      // Đăng nhập thành công
+      dispatch(setToken(result.token));
+      // Chuyển sang màn hình Home
+      navigation.navigate('Home');
+    } else {
+      // Đăng nhập thất bại
+      Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.root}>
@@ -83,10 +122,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Login button */}
-          <TouchableOpacity style={styles.primaryBtn}>
-            <Text style={styles.primaryBtnText}>LOG IN</Text>
-          </TouchableOpacity>
+          {/* Login button (dùng component) */}
+          <PrimaryButton
+            title="LOG IN"
+            onPress={handleLoginPress}
+            loading={isLoading}
+          />
 
           {/* Sign up line */}
           <View style={styles.centerRow}>
@@ -103,7 +144,7 @@ export default function LoginScreen() {
             <View style={styles.divider} />
           </View>
 
-          {/* Social buttons (không dùng icon lib để khỏi cài thêm) */}
+          {/* Social buttons */}
           <View style={styles.socialRow}>
             <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#3b5998' }]}>
               <Text style={styles.socialText}>f</Text>
@@ -121,7 +162,8 @@ export default function LoginScreen() {
   );
 }
 
-const ORANGE = '#FF7B00';
+// Lấy hằng số màu từ theme
+const ORANGE = colors.primary;
 const DARK = '#0f1222';
 
 const styles = StyleSheet.create({
@@ -182,16 +224,6 @@ const styles = StyleSheet.create({
   checkboxChecked: { borderColor: ORANGE, backgroundColor: '#fff' },
   checkboxDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: ORANGE },
   rememberText: { marginLeft: 8, color: '#6B7280' },
-
-  primaryBtn: {
-    backgroundColor: ORANGE,
-    height: 54,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  primaryBtnText: { color: '#fff', fontWeight: '800', letterSpacing: 1 },
 
   centerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 18 },
   linkWarn: { color: ORANGE, fontWeight: '700' },
