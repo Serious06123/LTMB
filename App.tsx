@@ -4,6 +4,7 @@ import { Store } from './src/app/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Navigators from './src/app/navigation';
 
+
 // 1. Import ApolloProvider và client
 import { ApolloProvider } from '@apollo/client/react';
 import client from './src/app/apolloClient';

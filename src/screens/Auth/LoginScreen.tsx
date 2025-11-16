@@ -14,11 +14,10 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { AppNavigationProp } from '../../app/navigationTypes';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// import type { AppNavigationProp } from '../../app/navigationTypes';
 
 import PrimaryButton from '../../components/button/PrimaryButton';
-// Xóa authService đi, chúng ta sẽ dùng Apollo
-// import authService from '../../services/authService';
 import { useDispatch } from 'react-redux';
 import { setToken } from '../../features/general/generalSlice';
 import { colors } from '../../theme';
@@ -27,7 +26,7 @@ import { colors } from '../../theme';
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 
-// 2. Định nghĩa câu lệnh Mutation (giống trong server)
+// 2. Định nghĩa câu lệnh Mutation 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
     login(email: $email, password: $password) {
@@ -47,8 +46,8 @@ interface LoginResponse {
 }
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState<string>('test@gmail.com');
-  const [password, setPassword] = useState<string>('123456');
+  const [email, setEmail] = useState<string>('123@gmail.com');
+  const [password, setPassword] = useState<string>('123');
   const [secure, setSecure] = useState<boolean>(true);
   const [remember, setRemember] = useState<boolean>(false);
   // 4. Sử dụng hook useMutation
@@ -56,43 +55,60 @@ export default function LoginScreen() {
   const [login, { loading, error }] = useMutation<LoginResponse>(LOGIN_MUTATION);
   // const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const navigation = useNavigation<AppNavigationProp>();
+  const navigation = useNavigation();
   const dispatch = useDispatch();
 
   // 5. Cập nhật hàm handleLoginPress
   const handleLoginPress = async () => {
-    // Vẫn kiểm tra loading
-    if (loading) return;
+  // Vẫn kiểm tra loading
+  if (loading) return;
 
-    try {
-      // Gọi mutation
-      const { data } = await login({
-        variables: {
-          email: email,
-          password: password,
-        },
-      });
+  try {
+    // Gọi mutation
+    const { data } = await login({
+      variables: {
+        email: email,
+        password: password,
+      },
+    });
 
-      // Lấy kết quả từ data.login (tên của mutation)
-      if (!data || !data.login) {
-        Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
-        return;
-      }
-      const result = data.login;
-
-      if (result.success) {
-        dispatch(setToken(result.token));
-        navigation.navigate('Home');
-      } else {
-        Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
-      }
-
-    } catch (e) {
-      // Bắt lỗi mạng hoặc lỗi server
-      console.error('Lỗi khi gọi mutation:', e);
-      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+    // Lấy kết quả từ data.login (tên của mutation)
+    if (!data || !data.login) {
+      Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
+      return;
     }
-  };
+    const result = data.login;
+
+    if (result.success) {
+
+      // === PHẦN SỬA LỖI ===
+      try {
+        // 1. Lưu token vào bộ nhớ vĩnh viễn
+        await AsyncStorage.setItem('userToken', result.token);
+
+        // // 2. Nạp token vào Redux. 
+        // //    Navigator sẽ tự động chuyển màn hình sau dòng này.
+        dispatch(setToken(result.token));
+
+        // // 3. XÓA BỎ DÒNG GÂY LỖI:
+        navigation.navigate('Home' as never); 
+
+      } catch (e) {
+        console.error('Lỗi khi lưu token:', e);
+        Alert.alert('Lỗi', 'Không thể lưu phiên đăng nhập.');
+      }
+      // === KẾT THÚC SỬA LỖI ===
+
+    } else {
+      Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+    }
+
+  } catch (e) {
+    // Bắt lỗi mạng hoặc lỗi server
+    console.error('Lỗi khi gọi mutation:', e);
+    Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+  }
+};
 
   return (
     <SafeAreaView style={styles.root}>
