@@ -13,45 +13,84 @@ import {
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Import hook useNavigation và type
 import { useNavigation } from '@react-navigation/native';
-import { AppNavigationProp } from '../../app/navigationTypes.ts'; // (Hãy đảm bảo bạn đã tạo file này)
+import type { AppNavigationProp } from '../../app/navigationTypes';
 
-// Import component và logic
-import PrimaryButton from '../../components/button/PrimaryButton'; // (Hãy đảm bảo bạn đã tạo file này)
-import authService from '../../services/authService'; // Import default
+import PrimaryButton from '../../components/button/PrimaryButton';
+// Xóa authService đi, chúng ta sẽ dùng Apollo
+// import authService from '../../services/authService';
 import { useDispatch } from 'react-redux';
 import { setToken } from '../../features/general/generalSlice';
 import { colors } from '../../theme';
+
+// 1. Import hook và gql từ Apollo Client
+import { gql } from '@apollo/client';
+import { useMutation } from '@apollo/client/react';
+
+// 2. Định nghĩa câu lệnh Mutation (giống trong server)
+const LOGIN_MUTATION = gql`
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      success
+      token
+      error
+    }
+  }
+`;
+
+interface LoginResponse {
+  login: {
+    success: boolean;
+    token: string;
+    error?: string;
+  };
+}
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('test@gmail.com');
   const [password, setPassword] = useState<string>('123456');
   const [secure, setSecure] = useState<boolean>(true);
   const [remember, setRemember] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  // 4. Sử dụng hook useMutation
+  // Biến 'loading' sẽ tự động được Apollo quản lý
+  const [login, { loading, error }] = useMutation<LoginResponse>(LOGIN_MUTATION);
+  // const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const navigation = useNavigation<AppNavigationProp>();
   const dispatch = useDispatch();
 
-  // Hàm xử lý logic
+  // 5. Cập nhật hàm handleLoginPress
   const handleLoginPress = async () => {
-    if (isLoading) return;
-    setIsLoading(true);
+    // Vẫn kiểm tra loading
+    if (loading) return;
 
-    // Gọi hàm logic từ đối tượng authService
-    const result = await authService.loginApi(email, password);
+    try {
+      // Gọi mutation
+      const { data } = await login({
+        variables: {
+          email: email,
+          password: password,
+        },
+      });
 
-    setIsLoading(false);
+      // Lấy kết quả từ data.login (tên của mutation)
+      if (!data || !data.login) {
+        Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
+        return;
+      }
+      const result = data.login;
 
-    if (result.success) {
-      // Đăng nhập thành công
-      dispatch(setToken(result.token));
-      // Chuyển sang màn hình Home
-      navigation.navigate('Home');
-    } else {
-      // Đăng nhập thất bại
-      Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+      if (result.success) {
+        dispatch(setToken(result.token));
+        navigation.navigate('Home');
+      } else {
+        Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+      }
+
+    } catch (e) {
+      // Bắt lỗi mạng hoặc lỗi server
+      console.error('Lỗi khi gọi mutation:', e);
+      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
     }
   };
 
@@ -122,11 +161,11 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Login button (dùng component) */}
+          {/* 6. Truyền biến 'loading' từ hook useMutation vào button */}
           <PrimaryButton
             title="LOG IN"
             onPress={handleLoginPress}
-            loading={isLoading}
+            loading={loading} 
           />
 
           {/* Sign up line */}
@@ -161,6 +200,8 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
+
+// ... (phần styles giữ nguyên) ...
 
 // Lấy hằng số màu từ theme
 const ORANGE = colors.primary;
