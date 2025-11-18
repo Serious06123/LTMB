@@ -19,9 +19,7 @@ export default function Navigators() {
           <>
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Cart" component={CartScreen} />
-            <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-           </>
+            <Stack.Screen name="Login" component={LoginScreen} />         
             {/* Bạn có thể thêm các màn hình chính khác (Profile, Settings, v.v.)
               vào bên trong <></> này.
             */}

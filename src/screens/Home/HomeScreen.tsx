@@ -11,11 +11,9 @@ export default function HomeScreen() {
 
   // 2. Tạo hàm để điều hướng
   const goToCart = () => {
-    // 'Cart' là tên bạn đã định nghĩa trong navigation.js
     navigation.navigate('Cart' as never); 
   };
   const goToLogin = () => {
-    // 'Login' là tên bạn đã định nghĩa trong navigation.js
     navigation.navigate('Login' as never); 
   }
 

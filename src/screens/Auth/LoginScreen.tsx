@@ -53,7 +53,6 @@ export default function LoginScreen() {
   // 4. Sử dụng hook useMutation
   // Biến 'loading' sẽ tự động được Apollo quản lý
   const [login, { loading, error }] = useMutation<LoginResponse>(LOGIN_MUTATION);
-  // const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const navigation = useNavigation();
   const dispatch = useDispatch();
