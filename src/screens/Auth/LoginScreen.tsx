@@ -26,6 +26,7 @@ import { colors } from '../../theme';
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 
+import Icon from 'react-native-vector-icons/AntDesign';
 // 2. Định nghĩa câu lệnh Mutation 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
@@ -56,12 +57,14 @@ export default function LoginScreen() {
 
   const navigation = useNavigation();
   const dispatch = useDispatch();
-
+  const handleGoogleLogin = () => {
+    Alert.alert("Thông báo", "Tính năng đăng nhập Google đang phát triển");
+  };
   // 5. Cập nhật hàm handleLoginPress
   const handleLoginPress = async () => {
   // Vẫn kiểm tra loading
   if (loading) return;
-
+    
   try {
     // Gọi mutation
     const { data } = await login({
@@ -199,15 +202,10 @@ export default function LoginScreen() {
           </View>
 
           {/* Social buttons */}
-          <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#3b5998' }]}>
-              <Text style={styles.socialText}>f</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#1DA1F2' }]}>
-              <Text style={styles.socialText}>t</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#111827' }]}>
-              <Text style={styles.socialText}></Text>
+          <View style={styles.googleContainer}>
+            <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin}>
+              <Icon name="google" size={24} color="#DB4437" style={{ marginRight: 10 }} />
+              <Text style={styles.googleText}>Đăng nhập bằng Google</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -287,10 +285,30 @@ const styles = StyleSheet.create({
 
   dividerWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18, justifyContent: 'center' },
   divider: { height: 1, backgroundColor: '#E5E7EB', width: 80 },
-
-  socialRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 16, paddingBottom: 24 },
-  socialBtn: {
-    width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center',
+  googleContainer: {
+    marginTop: 20,
+    paddingBottom: 30,
   },
-  socialText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    height: 54,
+    // Shadow nhẹ để nút nổi lên
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  googleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  
 });
