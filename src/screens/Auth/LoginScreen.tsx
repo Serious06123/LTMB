@@ -26,7 +26,7 @@ import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 import ForgotPassword from './ForgotPassword';
 
-import Icon from 'react-native-vector-icons/AntDesign';
+//import Icon from 'react-native-vector-icons/AntDesign';
 // 2. Định nghĩa câu lệnh Mutation 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
