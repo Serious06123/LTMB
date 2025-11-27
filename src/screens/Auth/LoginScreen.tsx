@@ -26,6 +26,7 @@ import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 import ForgotPassword from './ForgotPassword';
 
+import Icon from 'react-native-vector-icons/AntDesign';
 // 2. Định nghĩa câu lệnh Mutation 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
@@ -56,12 +57,14 @@ export default function LoginScreen() {
 
   const navigation = useNavigation();
   const dispatch = useDispatch();
-
+  const handleGoogleLogin = () => {
+    Alert.alert("Thông báo", "Tính năng đăng nhập Google đang phát triển");
+  };
   // 5. Cập nhật hàm handleLoginPress
   const handleLoginPress = async () => {
   // Vẫn kiểm tra loading
   if (loading) return;
-
+    
   try {
     // Gọi mutation
     const { data } = await login({
