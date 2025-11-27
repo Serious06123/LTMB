@@ -1,5 +1,3 @@
-// Trong file: src/screens/Auth/LoginScreen.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -11,6 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +24,7 @@ import { colors } from '../../theme';
 // 1. Import hook và gql từ Apollo Client
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
+import ForgotPassword from './ForgotPassword';
 
 // 2. Định nghĩa câu lệnh Mutation 
 const LOGIN_MUTATION = gql`
@@ -111,15 +111,16 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        extraScrollHeight={60}
       >
         {/* ===== Header dark area ===== */}
         <View style={styles.hero}>
-          <Text style={styles.title}>Log In</Text>
-          <Text style={styles.subtitle}>Please sign in to your existing account</Text>
-          <View style={styles.heroBottomCurve} />
+          <Text style={styles.title}>Đăng nhập</Text>
+          <Text style={styles.subtitle}>Vui lòng đăng nhập vào tài khoản của bạn</Text>
+          {/* <View style={styles.heroBottomCurve} /> */}
         </View>
 
         {/* ===== Form card ===== */}
@@ -139,7 +140,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Password */}
-          <Text style={[styles.label, { marginTop: 16 }]}>PASSWORD</Text>
+          <Text style={[styles.label, { marginTop: 16 }]}>MẬT KHẨU</Text>
           <View style={styles.inputWrap}>
             <TextInput
               placeholder="••••••••••"
@@ -168,57 +169,63 @@ export default function LoginScreen() {
               <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
                 {remember && <View style={styles.checkboxDot} />}
               </View>
-              <Text style={styles.rememberText}>Remember me</Text>
+              <Text style={styles.rememberText}>Nhớ mật khẩu</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity>
-              <Text style={styles.linkWarn}>Forgot Password</Text>
+            <TouchableOpacity onPress={() => {try {navigation.navigate(ForgotPassword as never);} catch (e) {navigation.goBack();}}}>
+              <Text style={styles.linkWarn}>Quên mật khẩu</Text>
             </TouchableOpacity>
           </View>
 
           {/* 6. Truyền biến 'loading' từ hook useMutation vào button */}
           <PrimaryButton
-            title="LOG IN"
+            title="Đăng nhập"
             onPress={handleLoginPress}
             loading={loading} 
           />
 
           {/* Sign up line */}
           <View style={styles.centerRow}>
-            <Text style={styles.muted}>Don’t have an account? </Text>
-            <TouchableOpacity>
-              <Text style={styles.linkWarn}>SIGN UP</Text>
+            <Text style={styles.muted}>Chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={() => { try { navigation.navigate('Signup' as never); } catch (e) { navigation.navigate('Signup' as never); } }}>
+              <Text style={styles.linkWarn}>Đăng ký</Text>
             </TouchableOpacity>
           </View>
 
           {/* Divider */}
           <View style={styles.dividerWrap}>
             <View style={styles.divider} />
-            <Text style={styles.muted}>Or</Text>
+            <Text style={styles.muted}>Hoặc</Text>
             <View style={styles.divider} />
           </View>
 
           {/* Social buttons */}
-          <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#3b5998' }]}>
-              <Text style={styles.socialText}>f</Text>
+          <View style={styles.socialColumn}>
+            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#f21d1dff' }]}>
+              <View style={styles.socialBtnContent}>
+                <View style={styles.socialLeft}> 
+                  <Text style={styles.socialIcon}>G+</Text>
+                  <View style={styles.socialDivider} />
+                </View>
+                <Text style={styles.socialText}>Đăng nhập với Google</Text>
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#1DA1F2' }]}>
-              <Text style={styles.socialText}>t</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#111827' }]}>
-              <Text style={styles.socialText}></Text>
+            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#3b5998ff'}]}>
+              <View style={styles.socialBtnContent}>
+                <View style={styles.socialLeft}> 
+                  <Text style={styles.socialIcon}>f</Text>
+                  <View style={styles.socialDivider} />
+                </View>
+                <Text style={styles.socialText}>Đăng nhập với Facebook</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
-// ... (phần styles giữ nguyên) ...
-
-// Lấy hằng số màu từ theme
 const ORANGE = colors.primary;
 const DARK = '#0f1222';
 
@@ -228,9 +235,14 @@ const styles = StyleSheet.create({
     backgroundColor: DARK,
     paddingTop: 24,
     paddingHorizontal: 24,
-    paddingBottom: 56,
+    paddingBottom: 60,
+    marginTop: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 60,
+    flex: 1,
   },
-  title: { color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center' },
+  title: { color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center', },
   subtitle: {
     color: '#C9CFDA',
     fontSize: 15,
@@ -271,15 +283,15 @@ const styles = StyleSheet.create({
   eyeBtn: { paddingLeft: 8, paddingVertical: 6 },
   eyeText: { fontSize: 18 },
 
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 25 },
   row: { flexDirection: 'row', alignItems: 'center' },
   checkbox: {
     width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#D1D5DB',
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxChecked: { borderColor: ORANGE, backgroundColor: '#fff' },
-  checkboxDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: ORANGE },
-  rememberText: { marginLeft: 8, color: '#6B7280' },
+  checkboxDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: ORANGE, padding: 6.5 },
+  rememberText: { marginLeft: 8, color: '#6B7280', },
 
   centerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 18 },
   linkWarn: { color: ORANGE, fontWeight: '700' },
@@ -288,9 +300,26 @@ const styles = StyleSheet.create({
   dividerWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18, justifyContent: 'center' },
   divider: { height: 1, backgroundColor: '#E5E7EB', width: 80 },
 
-  socialRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 16, paddingBottom: 24 },
+  socialColumn: { flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', marginTop: 16, paddingBottom: 12, width: '100%' },
   socialBtn: {
-    width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center',
+    height: 54,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 16,
+    width: '100%',
+    marginVertical: 8,
   },
-  socialText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  socialText: { color: colors.white, fontSize: 20, fontWeight: '600', flex: 1, marginLeft: 8 },
+  socialBtnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  socialLeft: { width: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  socialIcon: { color: colors.white, fontSize: 25, fontWeight: '800', marginRight: 30 },
+  socialDivider: { 
+    width: 2, 
+    height: 24, 
+    backgroundColor: 'rgba(255,255,255,1)', 
+    marginHorizontal: 10, 
+    position: 'absolute',
+    left: 32,
+  },
 });
