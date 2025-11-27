@@ -56,6 +56,7 @@ const styles = StyleSheet.create({
     color: colors.white, // Sử dụng màu white từ theme
     fontWeight: '800',
     letterSpacing: 1,
+    fontSize: 17,
   },
 });
 

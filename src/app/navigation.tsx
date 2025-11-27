@@ -10,6 +10,9 @@ import LoginScreen from '../screens/Auth/LoginScreen';
 import CartScreen from '../screens/Cart/CartScreen';
 import IntroScreen from '../screens/Auth/Intro';
 import PaymentScreen from '../screens/Payment/PaymentScreen';
+import SignupScreen from '../screens/Auth/SignupScreen';
+import ForgotPassword from '../screens/Auth/ForgotPassword';
+import OTPVerify from '../screens/Auth/OTPVerify';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
@@ -21,6 +24,9 @@ export default function Navigators() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Cart" component={CartScreen} />
         <Stack.Screen name="Payment" component={PaymentScreen} /> 
+        <Stack.Screen name="Signup" component={SignupScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+        <Stack.Screen name="OTPVerify" component={OTPVerify} />
       </Stack.Navigator>
     </NavigationContainer>
   );
