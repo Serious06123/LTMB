@@ -23,6 +23,9 @@ const FoodScreen = () => {
   const goToSearch = () => {
     navigation.navigate('Search' as never);
   };
+  const goToFoodDetail = () => {
+    navigation.navigate('FoodDetail' as never);
+  }
   const popularBurgers = [
     {
       id: 1,
@@ -145,7 +148,7 @@ const FoodScreen = () => {
                 }}
               >
                 <Text style={styles.cardPrice}>{item.price}</Text>
-                <TouchableOpacity style={styles.addButton}>
+                <TouchableOpacity style={styles.addButton} onPress={goToFoodDetail}>
                   <Text style={styles.addButtonText}>+</Text>
                 </TouchableOpacity>
               </View>

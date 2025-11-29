@@ -1,10 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Pressable,
+} from 'react-native';
 import { colors } from '../../theme';
+import AntDesign from 'react-native-vector-icons/AntDesign';
+import { useNavigation } from '@react-navigation/native';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const FoodDetailScreen = () => {
+  const navigation = useNavigation();
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isSelected, setIsSelected] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-
+  const goBack = () => {
+    navigation.goBack();
+  };
+  const goToCart = () => {
+    navigation.navigate('Cart' as never);
+  };
   const handleIncrease = () => setQuantity(quantity + 1);
   const handleDecrease = () => {
     if (quantity > 1) setQuantity(quantity - 1);
@@ -14,40 +33,88 @@ const FoodDetailScreen = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
+          <AntDesign name="left" color="#000" size={24} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.favoriteButton}>
-          <Text style={styles.favoriteIcon}>❤️</Text>
-        </TouchableOpacity>
+        <Text style={styles.searchTitle}>Details</Text>
       </View>
 
       {/* Image Placeholder */}
-      <View style={styles.imagePlaceholder} />
+      <View style={styles.imageContainer}>
+        <Image
+          source={require('../../assets/images/pizza1.png')}
+          style={styles.imagePlaceholder}
+        />
+        <Pressable
+          onPress={() => setIsFavorite(!isFavorite)}
+          style={styles.favoriteButton}
+        >
+          {isFavorite ? (
+            <AntDesign name="heart" color="#ff0000" size={24} />
+          ) : (
+            <Feather name="heart" color="#ffffffff" size={24} />
+          )}
+        </Pressable>
+        <View style={styles.restaurantLabel}>
+          <Image
+            source={require('../../assets/images/pizza1.png')}
+            style={{ width: 30, height: 30, borderRadius: 15, marginRight: 8 }}
+          />
+          <Text>Uttora Coffee House</Text>
+        </View>
+      </View>
 
       {/* Food Info */}
       <View style={styles.infoContainer}>
         <Text style={styles.foodTitle}>Burger Bistro</Text>
-        <Text style={styles.foodSubtitle}>Rose Garden</Text>
-
-        <View style={styles.foodDetailsRow}>
-          <Text style={styles.foodDetail}>⭐ 4.7</Text>
-          <Text style={styles.foodDetail}>Free</Text>
-          <Text style={styles.foodDetail}>20 min</Text>
-        </View>
 
         <Text style={styles.foodDescription}>
           Macenas sed diam eget risus varius blandit sit amet non magna. Integer
           posuere erat a ante venenatis dapibus posuere velit aliquet.
         </Text>
+        <View style={styles.restaurantMeta}>
+          <View style={styles.restaurantMetaDetails}>
+            <AntDesign name="staro" color={colors.primary} size={20} />
+            <Text>4.7</Text>
+          </View>
+          <View style={styles.restaurantMetaDetails}>
+            <MaterialCommunityIcons
+              name="truck-fast-outline"
+              color={colors.primary}
+              size={20}
+            />
+            <Text>Free</Text>
+          </View>
+          <View style={styles.restaurantMetaDetails}>
+            <Feather name="clock" color={colors.primary} size={20} />
+            <Text>30 mins</Text>
+          </View>
+        </View>
 
         {/* Size Options */}
         <View style={styles.sizeContainer}>
           <Text style={styles.sizeTitle}>SIZE:</Text>
-          <View style={styles.sizeOptionsRow}>
+          <View style={[styles.sizeOptionsRow]}>
             {['10"', '14"', '16"'].map((size, index) => (
-              <TouchableOpacity key={index} style={styles.sizeOption}>
-                <Text style={styles.sizeOptionText}>{size}</Text>
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.sizeOption,
+                  isSelected === size && { backgroundColor: colors.primary },
+                ]}
+                onPress={() => setIsSelected(size)}
+              >
+                <Text
+                  style={[
+                    styles.sizeOptionText,
+                    isSelected === size && {
+                      color: '#fff',
+                      fontWeight: 'bold',
+                    },
+                  ]}
+                >
+                  {size}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -67,28 +134,30 @@ const FoodDetailScreen = () => {
 
         {/* Price and Quantity */}
         <View style={styles.priceContainer}>
-          <Text style={styles.priceText}>$32</Text>
-          <View style={styles.quantityContainer}>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={handleDecrease}
-            >
-              <Text style={styles.quantityButtonText}>-</Text>
-            </TouchableOpacity>
-            <Text style={styles.quantityText}>{quantity}</Text>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={handleIncrease}
-            >
-              <Text style={styles.quantityButtonText}>+</Text>
-            </TouchableOpacity>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceText}>$32</Text>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={handleDecrease}
+              >
+                <Text style={styles.quantityButtonText}>-</Text>
+              </TouchableOpacity>
+              <Text style={styles.quantityText}>{quantity}</Text>
+              <TouchableOpacity
+                style={styles.quantityButton}
+                onPress={handleIncrease}
+              >
+                <Text style={styles.quantityButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+          <TouchableOpacity style={styles.addToCartButton} onPress={goToCart}>
+            <Text style={styles.addToCartText}>ADD TO CART</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Add to Cart Button */}
-        <TouchableOpacity style={styles.addToCartButton}>
-          <Text style={styles.addToCartText}>ADD TO CART</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -98,30 +167,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    marginTop: 40,
+    paddingTop: 40,
+    paddingLeft: 20,
+    paddingRight: 20,
   },
   headerContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   backButton: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    marginRight: 15,
+    width: 45,
+    height: 45,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ECF0F4',
   },
   backIcon: {
     fontSize: 16,
     color: colors.black,
   },
+  searchTitle: {
+    fontSize: 20,
+  },
+  imageContainer: {
+    marginBottom: 10,
+    position: 'relative',
+  },
   favoriteButton: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: '#98a8b81a',
+    borderRadius: 50,
+    width: 45,
+    height: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 35,
+    right: 20,
   },
   favoriteIcon: {
     fontSize: 16,
@@ -129,7 +214,7 @@ const styles = StyleSheet.create({
   },
   imagePlaceholder: {
     width: '100%',
-    height: 200,
+    height: 184,
     backgroundColor: colors.gray,
     borderRadius: 10,
     marginBottom: 20,
@@ -159,27 +244,31 @@ const styles = StyleSheet.create({
   },
   foodDescription: {
     fontSize: 14,
-    color: colors.black,
+    color: '#A0A5BA',
     marginBottom: 20,
   },
   sizeContainer: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
   },
   sizeTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    // fontWeight: 'bold',
     color: colors.black,
-    marginBottom: 10,
+    marginBottom: 30,
+    marginTop: 30,
   },
   sizeOptionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 10,
   },
   sizeOption: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: '#F0F5FA',
+    borderRadius: 50,
+    padding: 15,
   },
   sizeOptionText: {
     color: colors.black,
@@ -188,54 +277,70 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   ingredientsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    // fontWeight: 'bold',
     color: colors.black,
-    marginBottom: 10,
+    marginBottom: 15,
   },
   ingredientsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   ingredientIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#676767',
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    backgroundColor: '#FFEBE4',
+    borderRadius: 50,
   },
   priceContainer: {
+    backgroundColor: '#F0F5FA',
+    flexDirection: 'column',
+    marginBottom: 20,
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    paddingHorizontal: 10,
+    paddingTop: 10,
   },
   priceText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
     color: colors.black,
   },
   quantityContainer: {
+    backgroundColor: '#121223',
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
   quantityButton: {
-    backgroundColor: '#676767',
+    backgroundColor: '#aaa4a488',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    marginHorizontal: 10,
+    marginVertical: 5,
   },
   quantityButtonText: {
-    fontSize: 16,
-    color: colors.black,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   quantityText: {
     fontSize: 16,
-    color: colors.black,
+    fontWeight: 'bold',
+    color: '#fff',
     marginHorizontal: 10,
   },
   addToCartButton: {
     backgroundColor: colors.primary,
-    borderRadius: 20,
+    borderRadius: 15,
     paddingVertical: 16,
     alignItems: 'center',
   },
@@ -243,6 +348,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
+  },
+  restaurantLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 'auto',
+    borderColor: '#E9E9E9',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  restaurantMeta: {
+    flexDirection: 'row',
+    gap: 40,
+    marginTop: 8,
+    fontSize: 12,
+    color: '#888',
+  },
+  restaurantMetaDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
 });
 

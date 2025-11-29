@@ -3,11 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   FlatList,
   TouchableOpacity,
   Image,
-  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -66,7 +64,6 @@ export default function HomeScreen() {
   };
 
   const goToSearch = () => {
-    Alert.alert('Go to Search');
     navigation.navigate('Search' as never);
   };
 
