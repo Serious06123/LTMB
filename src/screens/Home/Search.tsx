@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Pressable,
 } from 'react-native';
 import { colors } from '../../theme';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import navigation from '../../app/navigation';
 import { useNavigation } from '@react-navigation/core';
 import { useState } from 'react';
 
@@ -63,18 +65,24 @@ const SearchScreen = () => {
             </View>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.searchInput}>
-          <AntDesign name="search1" color="#A0A5BA" size={24} />
-          <TextInput
-            placeholder={`Search dishes, restaurants`}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <View style={styles.clearButton}>
-              <Text style={styles.clearText}>X</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.searchInput}>
+            <AntDesign name="search1" color="#A0A5BA" size={24} />
+            <TextInput
+              placeholder={`Search dishes, restaurants`}
+              onChangeText={setSearch}
+              value={search}
+            />
+            {search.length > 0 && (
+              <Pressable
+                style={styles.clearButton}
+                onPress={() => setSearch('')}
+              >
+                <Text style={styles.clearText}>X</Text>
+              </Pressable>
+            )}
+          </View>
+        </TouchableWithoutFeedback>
       </View>
 
       {/* Recent Keywords */}
@@ -146,7 +154,7 @@ const SearchScreen = () => {
             <View style={styles.foodItem}>
               <Image source={item.image} style={styles.foodImage} />
               <Text style={styles.foodName}>{item.name}</Text>
-              <Text style={{ color: '#646982', fontSize: 13}}>
+              <Text style={{ color: '#646982', fontSize: 13 }}>
                 {item.restaurant}
               </Text>
             </View>
