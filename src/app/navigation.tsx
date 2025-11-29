@@ -13,20 +13,26 @@ import PaymentScreen from '../screens/Payment/PaymentScreen';
 import SignupScreen from '../screens/Auth/SignupScreen';
 import ForgotPassword from '../screens/Auth/ForgotPassword';
 import OTPVerify from '../screens/Auth/OTPVerify';
+import SearchScreen from '../screens/Home/Search';
+import FoodScreen from '../screens/Food/Food';
+import FoodDetailScreen from '../screens/Food/FoodDetail';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName='Intro' screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Intro" component={IntroScreen} />
+      <Stack.Navigator initialRouteName='Search' screenOptions={{ headerShown: false }}>
+        {/* <Stack.Screen name="Intro" component={IntroScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} /> */}
+        <Stack.Screen name="Search" component={SearchScreen} />
+        {/* <Stack.Screen name="Food" component={FoodScreen} />
+        <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
         <Stack.Screen name="Cart" component={CartScreen} />
         <Stack.Screen name="Payment" component={PaymentScreen} /> 
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-        <Stack.Screen name="OTPVerify" component={OTPVerify} />
+        <Stack.Screen name="OTPVerify" component={OTPVerify} /> */}
       </Stack.Navigator>
     </NavigationContainer>
   );
