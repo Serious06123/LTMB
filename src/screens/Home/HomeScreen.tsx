@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../theme';
 import { useNavigation } from '@react-navigation/native';
+import DiscountPopup from '../../components/discount/DiscountPopup';
 
 const categories = [
   {
@@ -57,10 +58,23 @@ const restaurants = [
 ];
 
 export default function HomeScreen() {
+  const [showDiscount, setShowDiscount] = useState(false);
   const navigation = useNavigation();
   const goToCart = () => {
     navigation.navigate('Cart' as never);
   };
+
+  const goToSearch = () => {
+    navigation.navigate('Search' as never);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowDiscount(true);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -94,12 +108,11 @@ export default function HomeScreen() {
             Hey Halal,{' '}
             <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text>
           </Text>
-          <View style={styles.searchInput}>
+          <TouchableOpacity style={styles.searchInput} onPress={goToSearch}>
             <AntDesign name="search1" color="#A0A5BA" size={24} />
             <TextInput placeholder={`Search dishes, restaurants`} />
-          </View>
+          </TouchableOpacity>
         </View>
-
         {/* Categories Section */}
         <View style={styles.categoriesSection}>
           <View style={styles.sectionHeader}>
@@ -112,7 +125,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 16, paddingLeft: 5 }}
             horizontal
             data={categories}
             keyExtractor={item => item.id}
@@ -183,6 +196,7 @@ export default function HomeScreen() {
           />
         </View>
       </View>
+      {showDiscount && <DiscountPopup onClose={() => setShowDiscount(false)} />}
     </View>
   );
 }
@@ -191,9 +205,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-    paddingTop: 50,
+    marginTop: 40,
+    paddingTop: 20,
     paddingLeft: 20,
     paddingRight: 30,
+    paddingBottom: 30,
   },
   headerSection: {
     marginBottom: 16,
