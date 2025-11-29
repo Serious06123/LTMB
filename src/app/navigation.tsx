@@ -1,8 +1,8 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useSelector } from 'react-redux'; 
+import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeScreen from '../screens/Home/HomeScreen';
@@ -21,18 +21,21 @@ const Stack = createNativeStackNavigator();
 export default function Navigators() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName='Search' screenOptions={{ headerShown: false }}>
-        {/* <Stack.Screen name="Intro" component={IntroScreen} />
+      <Stack.Navigator
+        initialRouteName="Food"
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="Intro" component={IntroScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} /> */}
+        <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Search" component={SearchScreen} />
-        {/* <Stack.Screen name="Food" component={FoodScreen} />
+        <Stack.Screen name="Food" component={FoodScreen} />
         <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
         <Stack.Screen name="Cart" component={CartScreen} />
-        <Stack.Screen name="Payment" component={PaymentScreen} /> 
+        <Stack.Screen name="Payment" component={PaymentScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-        <Stack.Screen name="OTPVerify" component={OTPVerify} /> */}
+        <Stack.Screen name="OTPVerify" component={OTPVerify} />
       </Stack.Navigator>
     </NavigationContainer>
   );
