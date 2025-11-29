@@ -23,6 +23,9 @@ const SearchScreen = () => {
   const goToCart = () => {
     navigation.navigate('Cart' as never);
   };
+  const goBack = () => {
+    navigation.goBack();
+  }
   const data = [
     {
       id: '1',
@@ -54,7 +57,7 @@ const SearchScreen = () => {
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
         <View style={styles.deliveryInfo}>
-          <TouchableOpacity style={styles.backButton}>
+          <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <AntDesign name="left" color="#000" size={24} />
           </TouchableOpacity>
           <Text style={styles.searchTitle}>Search</Text>

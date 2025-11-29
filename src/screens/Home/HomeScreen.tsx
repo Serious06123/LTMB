@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -65,6 +66,7 @@ export default function HomeScreen() {
   };
 
   const goToSearch = () => {
+    Alert.alert('Go to Search');
     navigation.navigate('Search' as never);
   };
 
@@ -110,7 +112,7 @@ export default function HomeScreen() {
           </Text>
           <TouchableOpacity style={styles.searchInput} onPress={goToSearch}>
             <AntDesign name="search1" color="#A0A5BA" size={24} />
-            <TextInput placeholder={`Search dishes, restaurants`} />
+            <Text> Search dishes, restaurants</Text>
           </TouchableOpacity>
         </View>
         {/* Categories Section */}
