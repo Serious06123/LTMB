@@ -25,10 +25,10 @@ const SearchScreen = () => {
   };
   const goBack = () => {
     navigation.goBack();
-  }
+  };
   const goToFoodSearch = () => {
     navigation.navigate('Food' as never);
-  }
+  };
   const data = [
     {
       id: '1',
@@ -100,7 +100,10 @@ const SearchScreen = () => {
           data={['Burger', 'Sandwich', 'Pizza', 'Sandwich']}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.keywordButton} onPress={goToFoodSearch}>
+            <TouchableOpacity
+              style={styles.keywordButton}
+              onPress={goToFoodSearch}
+            >
               <Text style={styles.keywordText}>{item}</Text>
             </TouchableOpacity>
           )}

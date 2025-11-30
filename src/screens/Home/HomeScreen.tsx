@@ -13,7 +13,7 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../theme';
 import { useNavigation } from '@react-navigation/native';
-import DiscountPopup from '../../components/discount/DiscountPopup';
+import DiscountPopup from '../../components/DiscountPopup';
 
 const categories = [
   {
@@ -195,7 +195,9 @@ export default function HomeScreen() {
           />
         </View>
       </View>
-      {showDiscount && <DiscountPopup onClose={() => setShowDiscount(false)} />}
+      {showDiscount && (
+          <DiscountPopup onClose={() => setShowDiscount(false)} />
+      )}
     </View>
   );
 }

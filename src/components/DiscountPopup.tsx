@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'react-native-linear-gradient';
-import { colors } from '../../theme';
+import { colors } from '../theme';
 
 interface DiscountPopupProps {
   onClose: () => void;
