@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     marginTop: 40,
     paddingTop: 40,
-    paddingLeft: 20,
-    paddingRight: 20,
+    paddingLeft: 25,
+    paddingRight: 25,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    bottom: 35,
+    bottom: 75,
     right: 20,
   },
   favoriteIcon: {
