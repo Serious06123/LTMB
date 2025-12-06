@@ -6,6 +6,10 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần truy cập vị trí để theo dõi đơn hàng.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần truy cập vị trí để theo dõi đơn hàng.</string>
 	<key>CFBundleDisplayName</key>
 	<string>final_project</string>
 	<key>CFBundleExecutable</key>

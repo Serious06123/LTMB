@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation , useRoute} from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons'
+import Icon from 'react-native-vector-icons/AntDesign';
 import { colors } from '../../theme'; // Import màu từ theme
 import PrimaryButton from '../../components/button/PrimaryButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +35,7 @@ export default function PaymentScreen() {
     Alert.alert(
       "Thanh toán thành công", 
       `Số tiền: ${formatCurrency(totalAmount)}\nPhương thức: ${selectedMethod === 'qr' ? 'Chuyển khoản QR' : 'Tiền mặt'}`,
-      [{ text: "Về trang chủ", onPress: () => navigation.navigate('Home' as never) }]
+      [{ text: "Theo dõi đơn hàng", onPress: () => navigation.navigate('TrackOrderScreen' as never) }]
     );
   };
 
@@ -52,7 +52,7 @@ export default function PaymentScreen() {
       >
         {isSelected && (
           <View style={styles.checkIcon}>
-            <Icon name="checkmark-circle" size={20} color={colors.primary} />
+            <Icon name="checkcircle" size={20} color={colors.primary} />
           </View>
         )}
         <Icon 
@@ -72,7 +72,7 @@ export default function PaymentScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-back" size={24} color="#181C2E" />
+          <Icon name="arrowleft" size={24} color="#181C2E" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thanh toán</Text>
         <View style={{ width: 40 }} /> 
@@ -80,8 +80,8 @@ export default function PaymentScreen() {
 
       {/* Chọn phương thức */}
       <View style={styles.methodRow}>
-        {renderMethodOption('qr', 'Mã QR', 'qr-code-outline')}
-        {renderMethodOption('cash', 'Tiền mặt', 'cash-outline')}
+        {renderMethodOption('qr', 'Mã QR', 'qrcode')}
+        {renderMethodOption('cash', 'Tiền mặt', 'wallet')}
       </View>
 
       {/* Khu vực hiển thị chính */}

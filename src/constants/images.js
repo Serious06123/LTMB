@@ -11,5 +11,6 @@ export const IMAGES = {
   
   // Ảnh mặc định (khi không tìm thấy ảnh)
   default: require('../assets/images/icon.png'),
+  shipperIcon : require('../assets/images/shipper.png'),
 };
 

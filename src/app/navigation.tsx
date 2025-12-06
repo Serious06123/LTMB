@@ -18,13 +18,15 @@ import FoodScreen from '../screens/Food/Food';
 import FoodDetailScreen from '../screens/Food/FoodDetail';
 import LocationAccessScreen from '../screens/Home/LocationAccess';
 import RestaurantViewScreen from '../screens/Food/RestaurantView';
+import MapScreen from '../screens/Map/MapScreen';
+import TrackOrderScreen from '../screens/Orders/TrackOrderScreen';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="RestaurantView"
+        initialRouteName="Intro"
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Intro" component={IntroScreen} />
@@ -40,6 +42,8 @@ export default function Navigators() {
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
         <Stack.Screen name="OTPVerify" component={OTPVerify} />
+        <Stack.Screen name="MapScreen" component={MapScreen} />
+        <Stack.Screen name="TrackOrderScreen" component={TrackOrderScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons'; 
+import Icon from 'react-native-vector-icons/AntDesign'; 
 import { colors } from '../../theme';
 import { IMAGES } from '../../constants/images.js';
+
 // --- 1. CẤU TRÚC DỮ LIỆU ---
 interface Product {
   id: string;
@@ -44,7 +45,7 @@ const DUMMY_CART: ShopGroup[] = [
         name: 'Pizza Hải Sản Pesto (Seafood Pesto)',
         variation: 'Đế giòn, Size L',
         price: 269000,
-        image: IMAGES.pizza1, // Ảnh pizza1 có sẵn
+        image: IMAGES.pizza1,
         quantity: 1,
         checked: false,
       },
@@ -53,7 +54,7 @@ const DUMMY_CART: ShopGroup[] = [
         name: 'Mỳ Ý Sốt Bò Bằm (Bolognese)',
         variation: 'Không cay',
         price: 89000,
-        image: IMAGES.pizza2, // Ảnh pizza2 có sẵn
+        image: IMAGES.pizza2,
         quantity: 2,
         checked: false,
       },
@@ -70,7 +71,7 @@ const DUMMY_CART: ShopGroup[] = [
         variation: 'Size Vừa',
         price: 159000,
         originalPrice: 190000,
-        image: IMAGES.burger1, // Dùng tạm ảnh introman2
+        image: IMAGES.burger1,
         quantity: 1,
         checked: false,
       },
@@ -84,21 +85,14 @@ const DUMMY_CART: ShopGroup[] = [
       { id: 'p4', name: 'Trà Sữa Trân Châu Đen', variation: '50% đường, 50% đá, Size M', price: 55000, image: IMAGES.tea1, quantity: 3, checked: false },
     ],
   },
-  {
-    shopId: 's4',
-    shopName: 'Trà Sữa Gong Cha',
-    checked: false,
-    items: [
-      { id: 'p5', name: 'Trà Sữa Trân Châu Đen', variation: '50% đường, 50% đá, Size M', price: 55000, image: IMAGES.shop_chicken, quantity: 3, checked: false },
-    ],
-  },
 ];
 
 // --- COMPONENT CHECKBOX ---
 const CheckBox = ({ checked, onPress }: { checked: boolean; onPress: () => void }) => (
   <TouchableOpacity onPress={onPress} style={styles.checkBoxHitSlop}>
     <View style={[styles.checkBox, checked && styles.checkBoxActive]}>
-      {checked && <Icon name="checkmark" size={12} color="#FFF" />}
+      {/* THAY ĐỔI: Icon 'check' */}
+      {checked && <Icon name="check" size={12} color="#FFF" />}
     </View>
   </TouchableOpacity>
 );
@@ -110,17 +104,14 @@ export default function CartScreen() {
   // --- LOGIC XỬ LÝ (GIỮ NGUYÊN) ---
   const toggleShop = (shopId: string) => {
     const newData = cartData.map(shop => {
-      // Nếu là Shop đang được bấm
       if (shop.shopId === shopId) {
-        const newChecked = !shop.checked; // Đảo ngược trạng thái hiện tại
+        const newChecked = !shop.checked;
         return {
           ...shop,
           checked: newChecked,
-          // Chọn/Bỏ chọn tất cả món trong shop này
           items: shop.items.map(item => ({ ...item, checked: newChecked })),
         };
       }
-      
       return {
         ...shop,
         checked: false,
@@ -129,28 +120,20 @@ export default function CartScreen() {
     });
     setCartData(newData);
   };
+
   const toggleItem = (shopId: string, itemId: string) => {
     const newData = cartData.map(shop => {
-      // Nếu là Shop chứa món đang bấm
       if (shop.shopId === shopId) {
         const newItems = shop.items.map(item => 
           item.id === itemId ? { ...item, checked: !item.checked } : item
         );
-        
-        // Kiểm tra xem có phải tất cả món trong shop này đều được chọn không
-        // (Để update checkbox của Shop header)
         const allChecked = newItems.length > 0 && newItems.every(item => item.checked);
-        
-        // Nếu có ít nhất 1 món được chọn thì giữ checkbox shop (hoặc tùy logic UI của bạn)
-        // Ở đây mình để logic: Chỉ check header nếu TẤT CẢ item được check
         return { ...shop, items: newItems, checked: allChecked };
       }
-
-      // === QUAN TRỌNG: Nếu là món thuộc Shop khác -> BỎ CHỌN HẾT ===
       return {
         ...shop,
-        checked: false, // Bỏ chọn header shop
-        items: shop.items.map(item => ({ ...item, checked: false })), // Bỏ chọn items
+        checked: false,
+        items: shop.items.map(item => ({ ...item, checked: false })),
       };
     });
     setCartData(newData);
@@ -190,18 +173,18 @@ export default function CartScreen() {
   // --- RENDER ITEM ---
   const renderShopGroup = ({ item: shop }: { item: ShopGroup }) => (
     <View style={styles.shopBlock}>
-      {/* Header của Shop */}
       <View style={styles.shopHeader}>
         <View style={styles.row}>
           <CheckBox checked={shop.checked} onPress={() => toggleShop(shop.shopId)} />
-          <Icon name="storefront-outline" size={18} color="#333" style={{ marginLeft: 8, marginRight: 4 }} />
+          {/* THAY ĐỔI: Icon 'shop' */}
+          <Icon name="car" size={18} color="#333" style={{ marginLeft: 8, marginRight: 4 }} />
           <Text style={styles.shopName}>{shop.shopName}</Text>
-          <Icon name="chevron-forward" size={16} color="#999" />
+          {/* THAY ĐỔI: Icon 'right' */}
+          <Icon name="right" size={14} color="#999" />
         </View>
         <Text style={styles.editText}>Sửa</Text>
       </View>
 
-      {/* Danh sách món ăn trong Shop */}
       {shop.items.map((product) => (
         <View key={product.id} style={styles.productItem}>
           <View style={styles.productRow}>
@@ -213,11 +196,11 @@ export default function CartScreen() {
               <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
               <View style={styles.variationTag}>
                 <Text style={styles.variationText}>{product.variation}</Text>
-                <Icon name="chevron-down" size={10} color="#666" />
+                {/* THAY ĐỔI: Icon 'down' */}
+                <Icon name="down" size={10} color="#666" />
               </View>
               <View style={styles.priceRow}>
                 <Text style={styles.priceText}>{formatCurrency(product.price)}</Text>
-                {/* Bộ đếm số lượng */}
                 <View style={styles.quantityStepper}>
                   <TouchableOpacity style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
                   <Text style={styles.quantityText}>{product.quantity}</Text>
@@ -227,9 +210,9 @@ export default function CartScreen() {
             </View>
           </View>
           
-          {/* Voucher của Shop (Giả lập) */}
           <View style={styles.voucherRow}>
-            <Icon name="ticket-outline" size={16} color={colors.primary} />
+            {/* THAY ĐỔI: Icon 'tags' */}
+            <Icon name="tags" size={16} color={colors.primary} />
             <Text style={styles.voucherText}>Giảm 15k phí vận chuyển</Text>
           </View>
         </View>
@@ -238,38 +221,36 @@ export default function CartScreen() {
   );
 
   return (
-    // SỬA LỖI SCROLL: Thêm style={{ flex: 1 }} cho SafeAreaView
     <SafeAreaView style={styles.container}>
       
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name = "arrow-back" size={24} color={colors.primary} />
+          {/* THAY ĐỔI: Icon 'arrowleft' */}
+          <Icon name="arrowleft" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Giỏ hàng ({cartData.reduce((acc, s) => acc + s.items.length, 0)})</Text>
         <Text style={styles.headerEdit}>Sửa</Text>
       </View>
 
-      {/* List Sản Phẩm */}
       <FlatList
         data={cartData}
         renderItem={renderShopGroup}
         keyExtractor={(item) => item.shopId}
-        contentContainerStyle={{ paddingBottom: 100 }} // Chừa chỗ cho Footer
-        style={{ flex: 1 }} // Quan trọng để cuộn được
+        contentContainerStyle={{ paddingBottom: 100 }}
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Footer Thanh Toán (Dính dưới đáy) */}
+      {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.row}>
-          {/* Nút check "Tất cả" đổi thành nút Bỏ chọn */}
           <TouchableOpacity onPress={deselectAll} style={{ flexDirection: 'row', alignItems: 'center' }}>
-             {/* Nếu có món đang chọn thì hiện icon Remove, không thì hiện ô trống */}
+            {/* THAY ĐỔI: Icon 'closecircleo' và 'checksquareo' */}
             {getSelectedCount() > 0 ? (
-                <Icon name="close-circle-outline" size={24} color={colors.primary} />
+                <Icon name="closecircleo" size={20} color={colors.primary} />
             ) : (
-                <Icon name="square-outline" size={24} color="#999" />
+                <Icon name="checksquareo" size={20} color="#999" />
             )}
             <Text style={styles.selectAllText}>
                 {getSelectedCount() > 0 ? "Bỏ chọn" : "Tất cả"}
@@ -284,17 +265,14 @@ export default function CartScreen() {
           </View>
           
           <TouchableOpacity 
-            // Disable nút mua nếu chưa chọn món
             style={[styles.buyButton, getSelectedCount() === 0 && styles.buyButtonDisabled]}
             disabled={getSelectedCount() === 0}
             onPress={() => {
-                // Tìm Shop đang được chọn để lấy tên gửi sang Payment (nếu cần)
                 const activeShop = cartData.find(s => s.items.some(i => i.checked));
-                
                 if (activeShop) {
                     (navigation as any).navigate('Payment' as never, { 
                         totalAmount: getTotalPrice(),
-                        shopName: activeShop.shopName // Truyền thêm tên quán
+                        shopName: activeShop.shopName
                     });
                 }
             }}
@@ -310,11 +288,9 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, // Quan trọng: Chiếm toàn bộ màn hình để con cuộn được
+    flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,8 +311,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-
-  // Checkbox
   checkBoxHitSlop: {
     padding: 4,
   },
@@ -351,11 +325,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
   },
   checkBoxActive: {
-    backgroundColor: colors.primary, // Dùng màu cam của app
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-
-  // Shop Block
   shopBlock: {
     backgroundColor: '#FFF',
     marginTop: 10,
@@ -384,8 +356,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
-  // Product Item
   productItem: {
     paddingHorizontal: 12,
     paddingTop: 12,
@@ -436,8 +406,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  
-  // Stepper (Tăng giảm số lượng)
   quantityStepper: {
     flexDirection: 'row',
     borderWidth: 1,
@@ -459,8 +427,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     color: '#333'
   },
-
-  // Voucher
   voucherRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,8 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 6,
   },
-
-  // Footer
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -520,6 +484,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   buyButtonDisabled: {
-    backgroundColor: '#ccc', // Màu xám khi không chọn gì
+    backgroundColor: '#ccc',
   }
 });

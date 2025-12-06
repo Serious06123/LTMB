@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'react-native-linear-gradient';
+// XÓA dòng này: import { LinearGradient } from 'react-native-linear-gradient';
 import { colors } from '../theme';
 
 interface DiscountPopupProps {
@@ -26,7 +26,8 @@ const DiscountPopup: React.FC<DiscountPopupProps> = ({ onClose }) => {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <LinearGradient colors={['#FFEB34', '#E76F00']} style={styles.popup}>
+      {/* THAY THẾ LinearGradient BẰNG View */}
+      <View style={styles.popup}>
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
@@ -36,7 +37,7 @@ const DiscountPopup: React.FC<DiscountPopupProps> = ({ onClose }) => {
         <TouchableOpacity style={styles.button} onPress={onClose}>
           <Text style={styles.buttonText}>GOT IT</Text>
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
     </Animated.View>
   );
 };
@@ -51,12 +52,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999, // Thêm zIndex để chắc chắn nó nổi lên trên
   },
   popup: {
     width: '70%',
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
+    backgroundColor: '#FFB800', // Dùng màu vàng cam thay thế cho Gradient
+    // Hoặc bạn có thể dùng màu primary: backgroundColor: colors.primary,
   },
   closeButton: {
     backgroundColor: '#FFE194',
@@ -66,20 +70,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -10, // Điều chỉnh lại vị trí một chút
+    right: -10,
   },
   closeText: {
-    fontSize: 10,
+    fontSize: 14,
     color: colors.primary,
     fontWeight: 'bold',
   },
   title: {
-    fontSize: 40,
+    fontSize: 32, // Giảm size một chút cho vừa vặn
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 30,
-    marginTop: 40,
+    marginBottom: 20,
+    marginTop: 30,
+    textAlign: 'center',
   },
   coupon: {
     fontSize: 25,
@@ -90,7 +95,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     textAlign: 'center',
-    marginTop: 30,
+    marginTop: 20,
     marginBottom: 30,
   },
   button: {
@@ -105,7 +110,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    color: '#ffffffff',
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 
