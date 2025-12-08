@@ -5,16 +5,43 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import PrimaryButton from '../../components/button/PrimaryButton';
 import { colors } from '../../theme';
+
+// 1. Import Apollo
+import { gql } from '@apollo/client';
+import { useMutation , useQuery } from '@apollo/client/react';
+// 2. Định nghĩa Mutation
+const REGISTER_MUTATION = gql`
+  mutation Register($name: String!, $email: String!, $password: String!) {
+    register(name: $name, email: $email, password: $password) {
+      success
+      error
+      user {
+        id
+        name
+        email
+      }
+    }
+  }
+`;
+
+interface RegisterResponse {
+  register: {
+    success: boolean;
+    error?: string;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  };
+}
 
 export default function SignupScreen() {
   const [name, setName] = useState<string>('');
@@ -26,7 +53,11 @@ export default function SignupScreen() {
 
   const navigation = useNavigation();
 
-  const handleRegister = () => {
+  // 3. Khởi tạo hook mutation
+  const [registerApi, { loading }] = useMutation<RegisterResponse>(REGISTER_MUTATION);
+
+  const handleRegister = async () => {
+    // Validate cơ bản
     if (!name.trim() || !email.trim() || !password) {
       Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin.');
       return;
@@ -36,19 +67,36 @@ export default function SignupScreen() {
       return;
     }
 
-    // Hiện tại chỉ hiển thị thông báo -- logic đăng ký thực tế sẽ gọi API
-    Alert.alert('Thành công', 'Đăng ký thành công. Vui lòng đăng nhập.');
-    // Quay lại màn hình Đăng nhập
     try {
-      navigation.navigate('Login' as never);
+      // 4. Gọi API
+      const { data } = await registerApi({
+        variables: {
+          name: name,
+          email: email,
+          password: password,
+        },
+      });
+
+      if (data?.register?.success) {
+        Alert.alert(
+          'Thành công', 
+          'Tài khoản đã được tạo! Vui lòng đăng nhập.',
+          [
+            { text: 'OK', onPress: () => navigation.navigate('Login' as never) }
+          ]
+        );
+      } else {
+        Alert.alert('Đăng ký thất bại', data?.register?.error || 'Có lỗi xảy ra.');
+      }
+
     } catch (e) {
-      navigation.goBack();
+      console.error(e);
+      Alert.alert('Lỗi mạng', 'Không thể kết nối đến máy chủ.');
     }
   };
 
   return (
     <SafeAreaView style={styles.root}>
-      
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         enableOnAndroid={true}
@@ -56,14 +104,16 @@ export default function SignupScreen() {
         >
         <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => { try { navigation.navigate('Login' as never); } catch (e) { navigation.goBack(); } }}
+            onPress={() => navigation.goBack()}
         >
-        <Text style={styles.backIcon}>‹</Text>
-      </TouchableOpacity>
+          <Text style={styles.backIcon}>‹</Text>
+        </TouchableOpacity>
+        
         <View style={styles.hero}>
           <Text style={styles.title}>Đăng ký</Text>
           <Text style={styles.subtitle}>Tạo tài khoản mới để bắt đầu</Text>
         </View>
+
         <View style={styles.card}>
           <Text style={styles.label}>HỌ VÀ TÊN</Text>
           <View style={styles.inputWrap}>
@@ -73,7 +123,6 @@ export default function SignupScreen() {
               value={name}
               onChangeText={setName}
               style={styles.input}
-              autoCapitalize="words"
             />
           </View>
 
@@ -103,7 +152,6 @@ export default function SignupScreen() {
             <TouchableOpacity
               onPress={() => setSecure(s => !s)}
               style={styles.eyeBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.eyeText}>{secure ? '👁️' : '🙈'}</Text>
             </TouchableOpacity>
@@ -122,13 +170,16 @@ export default function SignupScreen() {
             <TouchableOpacity
               onPress={() => setSecureConfirm(s => !s)}
               style={styles.eyeBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.eyeText}>{secureConfirm ? '👁️' : '🙈'}</Text>
             </TouchableOpacity>
           </View>
 
-          <PrimaryButton title="Đăng ký" onPress={handleRegister} />
+          <PrimaryButton 
+            title="Đăng ký" 
+            onPress={handleRegister} 
+            loading={loading} // Hiển thị vòng quay khi đang gọi API
+          />
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
@@ -177,11 +228,7 @@ const styles = StyleSheet.create({
   eyeBtn: { paddingLeft: 8, paddingVertical: 6 },
   eyeText: { fontSize: 18 },
 
-  centerRowSmall: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, marginBottom: 8 },
-  linkWarn: { color: ORANGE, fontWeight: '700' },
-  muted: { color: '#9CA3AF' },
   backBtn: {
-    //position: 'absolute',
     left: 20,
     top: 40,
     width: 48,

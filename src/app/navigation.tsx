@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import MainTabs from './MainTabs';
 import HomeScreen from '../screens/Home/HomeScreen';
 import LoginScreen from '../screens/Auth/LoginScreen';
 import CartScreen from '../screens/Cart/CartScreen';
@@ -20,19 +21,31 @@ import LocationAccessScreen from '../screens/Home/LocationAccess';
 import RestaurantViewScreen from '../screens/Food/RestaurantView';
 import MapScreen from '../screens/Map/MapScreen';
 import TrackOrderScreen from '../screens/Orders/TrackOrderScreen';
+import RestaurantDashboard from '../screens/Restaurant/RestaurantDashboard';
+import RunningOrders from '../screens/Restaurant/RunningOrders';
+import NotificationScreen from '../screens/Notification/NotificationScreen';
+import FoodDetailRestaurant from '../screens/Restaurant/FoodDetailRestaurant';
+import ReviewsScreen from '../screens/Restaurant/ReviewsScreen';
+import CustomerTabs from './CustomerTabs'; // Import file mới tạo
+import MessageListScreen from '../screens/Orders/MessageListScreen'; // Import MessageList
+import ChatScreen from '../screens/Orders/ChatScreen';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Intro"
+        initialRouteName="CustomerTabs"
         screenOptions={{ headerShown: false }}
       >
+        <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Intro" component={IntroScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="LocationAccess" component={LocationAccessScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="CustomerTabs" component={CustomerTabs} />
+        <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="MessageListScreen" component={MessageListScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="Food" component={FoodScreen} />
         <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
@@ -44,6 +57,15 @@ export default function Navigators() {
         <Stack.Screen name="OTPVerify" component={OTPVerify} />
         <Stack.Screen name="MapScreen" component={MapScreen} />
         <Stack.Screen name="TrackOrderScreen" component={TrackOrderScreen} />
+        <Stack.Screen name="RestaurantDashboard" component={RestaurantDashboard} />
+        <Stack.Screen
+          name="RunningOrders"
+          component={RunningOrders}
+          // Tùy chọn: Hiệu ứng trượt từ dưới lên giống Modal (chỉ hỗ trợ tốt trên iOS hoặc Android config native)
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen name="FoodDetailRestaurant" component={FoodDetailRestaurant} />
+        <Stack.Screen name="ReviewsScreen" component={ReviewsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

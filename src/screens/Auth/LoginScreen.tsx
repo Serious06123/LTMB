@@ -93,7 +93,7 @@ export default function LoginScreen() {
         dispatch(setToken(result.token));
 
         // // 3. XÓA BỎ DÒNG GÂY LỖI:
-        navigation.navigate('Home' as never); 
+        navigation.navigate('CustomerTabs' as never); 
 
       } catch (e) {
         console.error('Lỗi khi lưu token:', e);

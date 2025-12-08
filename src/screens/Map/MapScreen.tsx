@@ -22,8 +22,8 @@ import {
 } from '@maplibre/maplibre-react-native';
 
 import polyline from '@mapbox/polyline'; 
-import MapAPi from '../../core/api/MapAPI';
-import { GOONG_CONFIG } from '../../core/api/constant';
+import mapService from '../../services/mapService';
+import { GOONG_CONFIG } from '../../constants/config';
 
 interface LocationMarker {
   key: string;
@@ -98,7 +98,7 @@ const MapScreen = () => {
       vehicle: 'car'
     };
 
-    const res = await MapAPi.getDirections(req);
+    const res = await mapService.getDirections(req);
 
     if (res && res.routes && res.routes.length > 0) {
       const points = polyline.decode(res.routes[0].overview_polyline.points);
@@ -129,7 +129,7 @@ const MapScreen = () => {
     setDescription([]);
     Keyboard.dismiss();
 
-    let geocoding = await MapAPi.getGeocoding({
+    let geocoding = await mapService.getGeocoding({
       description: encodeURIComponent(item.description),
     });
 
@@ -164,7 +164,7 @@ const MapScreen = () => {
   const updateSearch = (text: string) => {
     setSearch(text);
     if (text.length > 2) {
-      MapAPi.getPlacesAutocomplete({ search: encodeURIComponent(text) })
+      mapService.getPlacesAutocomplete({ search: encodeURIComponent(text) })
         .then((res: any) => {
             if (res && res.predictions) setDescription(res.predictions);
         });
