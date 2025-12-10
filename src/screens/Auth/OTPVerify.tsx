@@ -1,4 +1,5 @@
 import React, {useRef, useState} from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
 	View,
 	Text,
@@ -8,16 +9,39 @@ import {
 	Alert,
 	Keyboard,
 } from 'react-native';
+import {useEffect} from 'react';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import PrimaryButton from '../../components/button/PrimaryButton';
 import {colors} from '../../theme';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+
+type RootStackParamList = {
+  ChangePasswordAuth: { email: string };
+};
 
 export default function OTPVerify() {
 	const [digits, setDigits] = useState(['', '', '', '']);
 	const inputs = [useRef<TextInput | null>(null), useRef<TextInput | null>(null), useRef<TextInput | null>(null), useRef<TextInput | null>(null)];
-	const navigation = useNavigation();
+
+	// Reset các ô OTP khi màn được focus
+	useFocusEffect(
+		React.useCallback(() => {
+			setDigits(['', '', '', '']);
+			inputs[0].current?.focus();
+		}, [])
+	);
+	const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+	const [cooldown, setCooldown] = useState(60);
+
+	useEffect(() => {
+		if (cooldown > 0) {
+			const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+			return () => clearTimeout(timer);
+		}
+	}, [cooldown]);
 
 	const handleChange = (index: number, val: string) => {
 		if (!/^[0-9]?$/.test(val)) return;
@@ -33,27 +57,54 @@ export default function OTPVerify() {
 		}
 	};
 
-	const handleVerify = () => {
+	// Lấy email từ navigation params
+	const route = require('@react-navigation/native').useRoute();
+	const { email } = route.params;
+
+	const handleVerify = async () => {
 		const code = digits.join('');
 		if (code.length < 4) {
 			Alert.alert('Lỗi', 'Vui lòng nhập đủ 4 chữ số.');
 			return;
 		}
-		// TODO: xác minh code qua API
-		Alert.alert('Thành công', `Mã bạn nhập: ${code}`);
 		try {
-			navigation.navigate('Login' as never);
+			const res = await fetch('http://10.0.2.2:4000/api/auth/verify-otp', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email, otp: code }),
+			});
+			const data = await res.json();
+			if (data.success) {
+				//Alert.alert('Thành công', 'Mã OTP hợp lệ!');
+				navigation.navigate('ChangePasswordAuth', { email });
+			} else {
+				Alert.alert('Lỗi', data.error || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+			}
 		} catch (e) {
-			navigation.goBack();
+			Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
 		}
 	};
 
-	const handleResend = () => {
-		// TODO: gọi API gửi lại mã
-		Alert.alert('Gửi lại', 'Mã xác thực đã được gửi lại.');
-		// tạo lại ô nhập
-		setDigits(['', '', '', '']);
-		inputs[0].current?.focus();
+	const handleResend = async () => {
+		if (cooldown > 0) return;
+		try {
+			const res = await fetch('http://10.0.2.2:4000/api/auth/resend-otp', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email }),
+			});
+			const data = await res.json();
+			if (data.success) {
+				//Alert.alert('Thành công', 'Mã OTP đã được gửi lại.');
+				setDigits(['', '', '', '']);
+				inputs[0].current?.focus();
+				setCooldown(60);
+			} else {
+				Alert.alert('Lỗi', data.error || 'Không thể gửi lại mã OTP.');
+			}
+		} catch (e) {
+			Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
+		}
 	};
 
 	return (
@@ -92,15 +143,22 @@ export default function OTPVerify() {
 							/>
 						))}
 					</View>
-
 					<View style={styles.resendRow}>
 						<Text style={styles.muted}>Chưa nhận được mã? </Text>
-						<TouchableOpacity onPress={handleResend}>
-							<Text style={styles.linkWarn}>Gửi lại mã</Text>
+						<TouchableOpacity
+							onPress={handleResend}
+							disabled={cooldown > 0}
+							style={cooldown > 0 ? { opacity: 0.5 } : {}}
+						>
+							<Text style={cooldown > 0 ? styles.resendDisabled : styles.linkWarn}>
+								{cooldown > 0 ? `Gửi lại mã (${cooldown})` : 'Gửi lại mã'}
+							</Text>
 						</TouchableOpacity>
 					</View>
-
-					<PrimaryButton title="Xác minh" onPress={handleVerify} />
+					<PrimaryButton title="Xác minh" 
+					onPress={handleVerify} 
+					//onPress={ () => {navigation.navigate('ChangePasswordAuth' as never)}}
+					/>
 				</View>
 			</KeyboardAwareScrollView>
 		</SafeAreaView>
@@ -170,5 +228,6 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
     },
     backIcon: { fontSize: 22, color: DARK },
+	resendDisabled: { color: '#aaa', fontWeight: '700' },
 });
 
