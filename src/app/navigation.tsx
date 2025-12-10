@@ -29,6 +29,7 @@ import ReviewsScreen from '../screens/Restaurant/ReviewsScreen';
 import CustomerTabs from './CustomerTabs'; // Import file mới tạo
 import MessageListScreen from '../screens/Orders/MessageListScreen'; // Import MessageList
 import ChatScreen from '../screens/Orders/ChatScreen';
+import ChangePasswordAuth from '../screens/Auth/ChangePasswordAuth';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
@@ -66,6 +67,7 @@ export default function Navigators() {
         />
         <Stack.Screen name="FoodDetailRestaurant" component={FoodDetailRestaurant} />
         <Stack.Screen name="ReviewsScreen" component={ReviewsScreen} />
+        <Stack.Screen name="ChangePasswordAuth" component={ChangePasswordAuth} />
       </Stack.Navigator>
     </NavigationContainer>
   );

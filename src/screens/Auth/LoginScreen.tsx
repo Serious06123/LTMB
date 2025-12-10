@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import {
   View,
   Text,
@@ -47,6 +49,11 @@ interface LoginResponse {
 }
 
 export default function LoginScreen() {
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '119176780470-1i0qq7puerhvf7p646lsib8epjh25jp3.apps.googleusercontent.com',
+    });
+  }, []);
   const [email, setEmail] = useState<string>('123@gmail.com');
   const [password, setPassword] = useState<string>('123');
   const [secure, setSecure] = useState<boolean>(true);
@@ -57,60 +64,106 @@ export default function LoginScreen() {
 
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const handleGoogleLogin = () => {
-    Alert.alert("Thông báo", "Tính năng đăng nhập Google đang phát triển");
+
+  // Hàm xử lý đăng nhập với Google
+  const handleGoogleLogin = async () => {
+    try {
+        await GoogleSignin.hasPlayServices();
+        await GoogleSignin.signOut(); // Đảm bảo đăng xuất trước khi đăng nhập lại
+        const userInfo = await GoogleSignin.signIn();
+        // Xử lý userInfo ở đây (gửi lên server, lưu state, ...)
+          console.log('Google user info:', userInfo);
+          // Gửi idToken lên backend để lưu user vào DB
+          // Lấy idToken từ userInfo hoặc userInfo.user
+          const idToken = userInfo?.data?.idToken;
+          if (!idToken) {
+            console.log('userInfo object:', userInfo);
+            //Alert.alert('Lỗi', 'Bạn đã hủy đăng nhập Google.');
+            return;
+          }
+          // Gọi API backend
+          const res = await fetch('http://10.0.2.2:4000/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            Alert.alert('Lỗi', json.error || 'Đăng nhập Google thất bại.');
+            return;
+          }
+          // Lưu user vào AsyncStorage
+          await AsyncStorage.setItem('user', JSON.stringify(json.user));
+          //Alert.alert('Đăng nhập Google thành công!', `Xin chào ${json.user.name}`);
+          // Chuyển hướng sang màn hình chính
+          navigation.navigate('CustomerTabs' as never);
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancel
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress already
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Lỗi', 'Google Play Services không khả dụng hoặc đã lỗi thời.');
+      } else {
+        // some other error
+        console.error(error);
+        Alert.alert('Lỗi', 'Đăng nhập Google thất bại.');
+      }
+    }
   };
+
+
   // 5. Cập nhật hàm handleLoginPress
   const handleLoginPress = async () => {
   // Vẫn kiểm tra loading
-  if (loading) return;
-    
-  try {
-    // Gọi mutation
-    const { data } = await login({
-      variables: {
-        email: email,
-        password: password,
-      },
-    });
+    if (loading) return;
+      
+    try {
+      // Gọi mutation
+      const { data } = await login({
+        variables: {
+          email: email,
+          password: password,
+        },
+      });
 
-    // Lấy kết quả từ data.login (tên của mutation)
-    if (!data || !data.login) {
-      Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
-      return;
-    }
-    const result = data.login;
-
-    if (result.success) {
-
-      // === PHẦN SỬA LỖI ===
-      try {
-        // 1. Lưu token vào bộ nhớ vĩnh viễn
-        await AsyncStorage.setItem('userToken', result.token);
-
-        // // 2. Nạp token vào Redux. 
-        // //    Navigator sẽ tự động chuyển màn hình sau dòng này.
-        dispatch(setToken(result.token));
-
-        // // 3. XÓA BỎ DÒNG GÂY LỖI:
-        navigation.navigate('CustomerTabs' as never); 
-
-      } catch (e) {
-        console.error('Lỗi khi lưu token:', e);
-        Alert.alert('Lỗi', 'Không thể lưu phiên đăng nhập.');
+      // Lấy kết quả từ data.login (tên của mutation)
+      if (!data || !data.login) {
+        Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
+        return;
       }
-      // === KẾT THÚC SỬA LỖI ===
+      const result = data.login;
 
-    } else {
-      Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+      if (result.success) {
+
+        // === PHẦN SỬA LỖI ===
+        try {
+          // 1. Lưu token vào bộ nhớ vĩnh viễn
+          await AsyncStorage.setItem('userToken', result.token);
+
+          // // 2. Nạp token vào Redux. 
+          // //    Navigator sẽ tự động chuyển màn hình sau dòng này.
+          dispatch(setToken(result.token));
+
+          // // 3. XÓA BỎ DÒNG GÂY LỖI:
+          navigation.navigate('CustomerTabs' as never); 
+
+        } catch (e) {
+          console.error('Lỗi khi lưu token:', e);
+          Alert.alert('Lỗi', 'Không thể lưu phiên đăng nhập.');
+        }
+        // === KẾT THÚC SỬA LỖI ===
+
+      } else {
+        Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+      }
+
+    } catch (e) {
+      // Bắt lỗi mạng hoặc lỗi server
+      console.error('Lỗi khi gọi mutation:', e);
+      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
     }
-
-  } catch (e) {
-    // Bắt lỗi mạng hoặc lỗi server
-    console.error('Lỗi khi gọi mutation:', e);
-    Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
-  }
-};
+  };
 
   return (
     <SafeAreaView style={styles.root}>
@@ -204,22 +257,14 @@ export default function LoginScreen() {
 
           {/* Social buttons */}
           <View style={styles.socialColumn}>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#f21d1dff' }]}>
+            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#ff0000ff' }]}
+             onPress={handleGoogleLogin}>
               <View style={styles.socialBtnContent}>
                 <View style={styles.socialLeft}> 
                   <Text style={styles.socialIcon}>G+</Text>
                   <View style={styles.socialDivider} />
                 </View>
                 <Text style={styles.socialText}>Đăng nhập với Google</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#3b5998ff'}]}>
-              <View style={styles.socialBtnContent}>
-                <View style={styles.socialLeft}> 
-                  <Text style={styles.socialIcon}>f</Text>
-                  <View style={styles.socialDivider} />
-                </View>
-                <Text style={styles.socialText}>Đăng nhập với Facebook</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -233,7 +278,7 @@ const ORANGE = colors.primary;
 const DARK = '#0f1222';
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DARK },
+  root: { flex: 1,backgroundColor: DARK },
   hero: {
     backgroundColor: DARK,
     paddingTop: 24,
@@ -254,23 +299,24 @@ const styles = StyleSheet.create({
   },
   heroBottomCurve: {
     position: 'absolute',
-    bottom: -28,
+    bottom: -100,
     left: 0,
     right: 0,
     height: 56,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffffff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
 
   card: {
-    flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffffff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    marginTop: -28,
+    marginTop: -24,
     paddingHorizontal: 20,
     paddingTop: 24,
+    minHeight: '60%',
+    //flex: 1,
   },
 
   label: { color: '#6B7280', fontWeight: '700', fontSize: 12, marginBottom: 8 },

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "119176780470",
+    "project_id": "ltmb-123a3",
+    "storage_bucket": "ltmb-123a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119176780470:android:ddd3813450a96eb970a417",
+        "android_client_info": {
+          "package_name": "com.final_project"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "119176780470-595viasb48pc5pkts6v9t0rib8hh77ev.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.final_project",
+            "certificate_hash": "3e234ad5e6dbedda8fc2e9ef4514d744b5902edc"
+          }
+        },
+        {
+          "client_id": "119176780470-1i0qq7puerhvf7p646lsib8epjh25jp3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlnT1Ro7YBOB2IN4VWOUKVHKcpZQhLMGg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "119176780470-1i0qq7puerhvf7p646lsib8epjh25jp3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -10,26 +10,48 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import PrimaryButton from '../../components/button/PrimaryButton';
 import { colors } from '../../theme';
 
+type RootStackParamList = {
+  OTPVerify: { email: string };
+};
+
+// Hàm kiểm tra định dạng email
+function isValidEmail(email: string): boolean {
+  const re = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
+  return re.test(email.trim());
+}
+
 export default function ForgotPassword() {
   const [email, setEmail] = useState<string>('');
-  const navigation = useNavigation();
+  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
-  const handleSendCode = () => {
-    // if (!email || !email.includes('@')) {
-    //   Alert.alert('Lỗi', 'Vui lòng nhập email hợp lệ.');
-    //   return;
-    // }
 
-    // TODO: gọi API gửi mã ở đây
-    // Chỉ chuyển UI sang trang OTP (OTPVerify)
-    try {
-      navigation.navigate('OTPVerify' as never);
-    } catch (e) {
-      navigation.goBack();
+  const handleSendOTP = async () => {
+    if (!isValidEmail(email)) {
+      Alert.alert('Lỗi', 'Email không hợp lệ!');
+      return;
     }
+    setLoading(true);
+    try {
+      const res = await fetch('http://10.0.2.2:4000/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        navigation.navigate('OTPVerify', { email });
+      } else {
+        Alert.alert('Lỗi', data.message || 'Gửi mã thất bại. Vui lòng thử lại.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+    }
+    setLoading(false);
   };
 
   return (
@@ -63,7 +85,8 @@ export default function ForgotPassword() {
 
           <PrimaryButton 
             title="Gửi mã"
-            onPress={handleSendCode} 
+            onPress={handleSendOTP}
+            loading={loading}
           />
         </View>
       </KeyboardAwareScrollView>
