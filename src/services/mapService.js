@@ -41,7 +41,10 @@ const mapService = {
     return mapService._get(
       `${BASE_URL}direction?origin=${origin}&destination=${destination}&vehicle=${vehicle}`
     );
-  }
+  },
+  getReverseGeocoding: (lat, lng) => {
+    return mapService._get(`${BASE_URL}geocode/reverse?lat=${lat}&lng=${lng}`);
+  },
 };
 
 export default mapService;

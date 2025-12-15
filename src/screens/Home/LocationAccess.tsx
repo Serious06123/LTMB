@@ -1,14 +1,109 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Platform,
+  PermissionsAndroid,
+  ActivityIndicator
+} from 'react-native';
 import { colors } from '../../theme';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
+import mapService from '../../services/mapService';
+import { useDispatch } from 'react-redux';
+import { setLocation } from '../../features/general/generalSlice'; // Import action
+// Import thư viện mới
+import Geolocation from 'react-native-geolocation-service';
+
 const LocationAccessScreen = () => {
-  const navigation = useNavigation();
-  const goToHome = () => {
-    navigation.navigate('Home' as never);
-  }
+  const navigation = useNavigation<any>();
+  const [loading, setLoading] = useState(false);
+  // Hàm xin quyền truy cập vị trí
+  const requestLocationPermission = async () => {
+    if (Platform.OS === 'ios') {
+      const auth = await Geolocation.requestAuthorization('whenInUse');
+      return auth === 'granted';
+    }
+
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: "Location Permission",
+            message: "App needs access to your location to set delivery address.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK"
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const handleAccessLocation = async () => {
+    setLoading(true);
+
+    // 1. Xin quyền
+    const hasPermission = await requestLocationPermission();
+
+    if (!hasPermission) {
+      setLoading(false);
+      Alert.alert('Permission Denied', 'You need to allow location access to use this feature.');
+      return;
+    }
+
+    // 2. Lấy tọa độ
+    Geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log("📍 Coords:", latitude, longitude);
+
+        try {
+          // 3. Gọi API lấy địa chỉ
+          const data = await mapService.getReverseGeocoding(latitude, longitude);
+
+          if (data && data.results && data.results.length > 0) {
+            const currentAddress = data.results[0].formatted_address;
+            console.log("🏡 Address:", currentAddress);
+
+            // 4. Chuyển màn hình với dữ liệu
+            navigation.navigate('CustomerTabs', {
+              screen: 'HomeTab', // <--- Phải chỉ rõ tên màn hình con bên trong Tab
+              params: {       // <--- Dữ liệu phải bọc trong object params này
+                address: currentAddress,
+                coords: { latitude, longitude }
+              }
+            });
+          } else {
+            Alert.alert('Error', 'Could not find address from these coordinates.');
+          }
+        } catch (error) {
+          console.error("API Error:", error);
+          Alert.alert('Error', 'Failed to connect to map service.');
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        // Xử lý lỗi khi lấy vị trí thất bại
+        console.log("GPS Error:", error.code, error.message);
+        setLoading(false);
+        Alert.alert('Location Error', 'Unable to get current location. Please check your GPS.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Map Icon */}
@@ -20,11 +115,21 @@ const LocationAccessScreen = () => {
       </View>
 
       {/* Access Location Button */}
-      <TouchableOpacity style={styles.accessButton} onPress={goToHome}>
-        <Text style={styles.accessButtonText}>ACCESS LOCATION</Text>
-        <View style={styles.accessButtonIcon}> 
-          <EvilIcons name="location" color="#ffffffff" size={24} />
-        </View>
+      <TouchableOpacity
+        style={styles.accessButton}
+        onPress={handleAccessLocation}
+        disabled={loading} // Khóa nút khi đang load
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <>
+            <Text style={styles.accessButtonText}>ACCESS LOCATION</Text>
+            <View style={styles.accessButtonIcon}>
+              <EvilIcons name="location" color="#ffffffff" size={24} />
+            </View>
+          </>
+        )}
       </TouchableOpacity>
 
       {/* Description */}
@@ -35,6 +140,7 @@ const LocationAccessScreen = () => {
   );
 };
 
+// ... Styles giữ nguyên không đổi ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -53,12 +159,6 @@ const styles = StyleSheet.create({
     borderRadius: 150,
     backgroundColor: '#F6F6F6',
   },
-  mapMarker: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -25 }, { translateY: -25 }],
-  },
   accessButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -68,6 +168,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 30,
     marginBottom: 20,
+    minWidth: 200,
   },
   accessButtonText: {
     color: colors.white,

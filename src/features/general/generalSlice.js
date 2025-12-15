@@ -38,12 +38,15 @@ const generalSlice = createSlice({
 
     setLoading: (state, action) => {
       state.isLoading = action.payload;
-    }
+    },
+    setLocation: (state, action) => {
+      state.currentLocation = action.payload;
+    },
   },
 });
 
 // Xuất các actions ra để các màn hình khác dùng
-export const { setToken, setUser, setLogin, logout, setLoading } = generalSlice.actions;
+export const { setToken, setUser, setLogin, logout, setLoading, setLocation } = generalSlice.actions;
 
 // Xuất reducer để store dùng
 export default generalSlice.reducer;

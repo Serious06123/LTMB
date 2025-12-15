@@ -12,7 +12,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../theme';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native'; // <--- Đã thêm useRoute
 import DiscountPopup from '../../components/DiscountPopup';
 
 const categories = [
@@ -57,8 +57,15 @@ const restaurants = [
 ];
 
 export default function HomeScreen() {
+  
   const [showDiscount, setShowDiscount] = useState(false);
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  
+  // <--- Code mới thêm
+  const route = useRoute();
+  const { address } = (route.params || {}) as { address?: string };
+  // ------------------
+
   const goToCart = () => {
     navigation.navigate('Cart' as never);
   };
@@ -87,7 +94,11 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'column' }}>
               <Text style={styles.deliveryText}>DELIVER TO</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text>Halal Lab office</Text>
+                {/* <--- Code mới sửa: Hiển thị địa chỉ động */}
+                <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
+                    {address || 'Current Location'}
+                </Text>
+
                 <AntDesign
                   style={{ marginLeft: 10 }}
                   name="caretdown"
@@ -202,6 +213,7 @@ export default function HomeScreen() {
   );
 }
 
+// ... styles giữ nguyên ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
