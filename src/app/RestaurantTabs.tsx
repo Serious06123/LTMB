@@ -56,7 +56,7 @@ const CustomTabBarButton = ({ children, onPress }: any) => (
   </TouchableOpacity>
 );
 
-export default function MainTabs() {
+export default function RestaurantTabs() {
   return (
     <Tab.Navigator
       screenOptions={{

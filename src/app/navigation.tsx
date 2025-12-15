@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import MainTabs from './MainTabs';
+import RestaurantTabs from './RestaurantTabs';
 import HomeScreen from '../screens/Home/HomeScreen';
 import LoginScreen from '../screens/Auth/LoginScreen';
 import CartScreen from '../screens/Cart/CartScreen';
@@ -23,20 +23,21 @@ import MapScreen from '../screens/Map/MapScreen';
 import TrackOrderScreen from '../screens/Orders/TrackOrderScreen';
 import RestaurantDashboard from '../screens/Restaurant/RestaurantDashboard';
 import RunningOrders from '../screens/Restaurant/RunningOrders';
-import NotificationScreen from '../screens/Notification/NotificationScreen';
 import FoodDetailRestaurant from '../screens/Restaurant/FoodDetailRestaurant';
 import ReviewsScreen from '../screens/Restaurant/ReviewsScreen';
 import CustomerTabs from './CustomerTabs'; // Import file mới tạo
 import MessageListScreen from '../screens/Orders/MessageListScreen'; // Import MessageList
 import ChatScreen from '../screens/Orders/ChatScreen';
 import ChangePasswordAuth from '../screens/Auth/ChangePasswordAuth';
+import ShipperTabs from './ShipperTabs';
+
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="CustomerTabs"
+        initialRouteName="ShipperTabs"
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -46,7 +47,7 @@ export default function Navigators() {
         <Stack.Screen name="CustomerTabs" component={CustomerTabs} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="MessageListScreen" component={MessageListScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="RestaurantTabs" component={RestaurantTabs} />
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="Food" component={FoodScreen} />
         <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
@@ -68,6 +69,7 @@ export default function Navigators() {
         <Stack.Screen name="FoodDetailRestaurant" component={FoodDetailRestaurant} />
         <Stack.Screen name="ReviewsScreen" component={ReviewsScreen} />
         <Stack.Screen name="ChangePasswordAuth" component={ChangePasswordAuth} />
+        <Stack.Screen name="ShipperTabs" component={ShipperTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
