@@ -1,10 +1,9 @@
-// src/features/general/generalSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   isLoggedIn: false,
   token: null,
-  user: null, // Lưu thông tin user (id, name, role...)
+  user: null,
   isLoading: false,
 };
 
@@ -12,31 +11,39 @@ const generalSlice = createSlice({
   name: 'general',
   initialState,
   reducers: {
-    // 1. Action setLogin: Khi đăng nhập thành công
-    setLogin: (state, action) => {
-      const { token, user } = action.payload;
-      state.isLoggedIn = true;
-      state.token = token;
-      state.user = user;
-    },
-
-    // 2. Action logout: Khi đăng xuất
-    logout: (state) => {
-      state.isLoggedIn = false;
-      state.token = null;
-      state.user = null;
-    },
-
-    // 3. Action cập nhật thông tin user (ví dụ sau khi verify OTP hoặc đổi avatar)
-    updateUser: (state, action) => {
-      state.user = { ...state.user, ...action.payload };
+    // Action để lưu Token (Sửa lỗi chưa có setToken)
+    setToken: (state, action) => {
+      state.token = action.payload;
+      state.isLoggedIn = !!action.payload; // Nếu có token -> isLoggedIn = true
     },
     
+    // Action để lưu User
+    setUser: (state, action) => {
+      state.user = action.payload;
+    },
+
+    // Action đăng nhập (Lưu cả token và user cùng lúc)
+    setLogin: (state, action) => {
+      state.token = action.payload.token;
+      state.user = action.payload.user;
+      state.isLoggedIn = true;
+    },
+
+    // Action đăng xuất
+    logout: (state) => {
+      state.token = null;
+      state.user = null;
+      state.isLoggedIn = false;
+    },
+
     setLoading: (state, action) => {
       state.isLoading = action.payload;
     }
   },
 });
 
-export const { setLogin, logout, updateUser, setLoading } = generalSlice.actions;
+// Xuất các actions ra để các màn hình khác dùng
+export const { setToken, setUser, setLogin, logout, setLoading } = generalSlice.actions;
+
+// Xuất reducer để store dùng
 export default generalSlice.reducer;

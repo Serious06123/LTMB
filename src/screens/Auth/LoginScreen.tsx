@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,184 +6,278 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+// Redux imports
 import { useDispatch } from 'react-redux';
-// Import action setLogin từ Redux Slice của bạn
-import { setLogin } from '../../features/general/generalSlice'; 
-import authService from '../../services/authService';
-import PrimaryButton from '../../components/button/PrimaryButton';
+import { setToken } from '../../features/general/generalSlice'; // <-- Đảm bảo import đúng
 import { colors } from '../../theme';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+// Apollo
+import { gql } from '@apollo/client';
+import { useMutation } from '@apollo/client/react';
+import ForgotPassword from './ForgotPassword';
+import PrimaryButton from '../../components/button/PrimaryButton';
+
+// --- CẤU HÌNH ---
+// Web Client ID từ Google Console
+const GOOGLE_WEB_CLIENT_ID = '119176780470-1i0qq7puerhvf7p646lsib8epjh25jp3.apps.googleusercontent.com'; 
+
+// URL Backend (Lưu ý: Nếu test trên điện thoại thật, thay 10.0.2.2 bằng IP LAN của máy tính, vd: 192.168.1.5)
+const BACKEND_URL = 'http://10.0.2.2:4000/api/auth/google';
+
+const LOGIN_MUTATION = gql`
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      success
+      token
+      error
+    }
+  }
+`;
+
+interface LoginResponse {
+  login: {
+    success: boolean;
+    token: string;
+    error?: string;
+  };
+}
 
 export default function LoginScreen() {
-  // Đổi tên state email -> identifier cho đúng ý nghĩa
-  const [identifier, setIdentifier] = useState(''); 
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  const [secure, setSecure] = useState(true);
-  const navigation = useNavigation<any>();
+  const [email, setEmail] = useState<string>('123@gmail.com');
+  const [password, setPassword] = useState<string>('123');
+  const [secure, setSecure] = useState<boolean>(true);
+  const [remember, setRemember] = useState<boolean>(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false); // Thêm loading riêng cho Google
+
+  const [login, { loading, error }] = useMutation<LoginResponse>(LOGIN_MUTATION);
+
+  const navigation = useNavigation();
   const dispatch = useDispatch();
 
-  const handleLogin = async () => {
-    if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ thông tin');
-      return;
-    }
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+    });
+  }, []);
 
-    setLoading(true);
+  const handleGoogleLogin = async () => {
+    setLoadingGoogle(true);
     try {
-      // Gọi API Login
-      const result = await authService.loginApi(identifier, password);
-
-      if (result.success) {
-        // 1. Lưu vào Redux
-        dispatch(setLogin({ 
-          token: result.token, 
-          user: result.user 
-        }));
-
-        // 2. Thông báo & Chuyển trang (Redux tự chuyển nếu đã setup navigation, hoặc tự navigate)
-        // Nếu App.tsx/Navigation.tsx lắng nghe isLoggedIn thì không cần dòng này
-        // Alert.alert('Thành công', 'Đăng nhập thành công!'); 
+        await GoogleSignin.hasPlayServices();
+        try { await GoogleSignin.signOut(); } catch (e) {} // Logout phiên cũ
         
-      } else {
-        // Xử lý lỗi
-        Alert.alert('Đăng nhập thất bại', result.error);
-        
-        // Nếu lỗi là do chưa xác thực -> Gợi ý nhập OTP
-        if (result.error?.includes('chưa được xác thực')) {
-            // Có thể thêm nút chuyển sang trang OTP nếu muốn
-            navigation.navigate('OTPVerify', { email: identifier, isSignup: true });
+        const userInfo = await GoogleSignin.signIn();
+        const signinResponse = userInfo as any;
+        const idToken = signinResponse.data?.idToken || signinResponse.idToken;
+
+        if (!idToken) {
+           Alert.alert('Lỗi', 'Không lấy được ID Token từ Google.');
+           setLoadingGoogle(false);
+           return;
         }
+
+        console.log('Sending ID Token to Backend...');
+
+        // Gọi API Backend
+        const res = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+        });
+
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+            Alert.alert('Lỗi Đăng Nhập', json.error || 'Server trả về lỗi.');
+            setLoadingGoogle(false);
+            return;
+        }
+
+        // --- ĐĂNG NHẬP THÀNH CÔNG ---
+        
+        // 1. Lưu token vào Redux (Quan trọng để App biết đã login)
+        if (json.token) {
+            dispatch(setToken(json.token));
+        } else {
+             console.warn('Backend không trả về token!');
+        }
+
+        // 2. Lưu vào AsyncStorage
+        await AsyncStorage.setItem('user', JSON.stringify(json.user));
+        if (json.token) {
+            await AsyncStorage.setItem('userToken', json.token);
+        }
+
+        // 3. Chuyển hướng
+        navigation.navigate('CustomerTabs' as never);
+
+    } catch (error: any) {
+      setLoadingGoogle(false);
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // User hủy, không làm gì cả
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Lỗi', 'Google Play Services không khả dụng.');
+      } else {
+        console.error('Google Login Error:', error);
+        Alert.alert('Lỗi', 'Đăng nhập Google thất bại. Vui lòng thử lại.');
       }
-    } catch (e) {
-      Alert.alert('Lỗi', 'Có lỗi xảy ra, vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
+  const handleLoginPress = async () => {
+    if (loading) return;
     try {
-      const result = await authService.googleLoginApi();
+      const { data } = await login({
+        variables: { email, password },
+      });
+
+      if (!data || !data.login) {
+        Alert.alert('Lỗi', 'Không nhận được phản hồi.');
+        return;
+      }
+      const result = data.login;
 
       if (result.success) {
-        dispatch(setLogin({ 
-          token: result.token, 
-          user: result.user 
-        }));
+        try {
+          await AsyncStorage.setItem('userToken', result.token);
+          dispatch(setToken(result.token));
+          navigation.navigate('CustomerTabs' as never); 
+        } catch (e) {
+          console.error('Lỗi lưu token:', e);
+        }
       } else {
-        Alert.alert('Đăng nhập thất bại', result.error);
+        Alert.alert('Thất bại', result.error || 'Lỗi không xác định');
       }
     } catch (e) {
-      Alert.alert('Lỗi', 'Có lỗi xảy ra, vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
+      console.error('Lỗi Mutation:', e);
+      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
     }
   };
 
   return (
     <SafeAreaView style={styles.root}>
-      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={styles.backIcon}>‹</Text>
-      </TouchableOpacity>
-
-      <View style={styles.content}>
-        <View style={styles.header}>
+      <KeyboardAwareScrollView contentContainerStyle={{ flexGrow: 1 }} enableOnAndroid={true} extraScrollHeight={60}>
+        <View style={styles.hero}>
           <Text style={styles.title}>Đăng nhập</Text>
-          <Text style={styles.subtitle}>Chào mừng bạn quay trở lại</Text>
+          <Text style={styles.subtitle}>Vui lòng đăng nhập vào tài khoản của bạn</Text>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>EMAIL HOẶC SỐ ĐIỆN THOẠI</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="example@gmail.com hoặc 0912..."
-            placeholderTextColor="#A0A5BA"
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-          />
-
-          <Text style={[styles.label, { marginTop: 20 }]}>MẬT KHẨU</Text>
-          <View style={styles.passwordContainer}>
+        <View style={styles.card}>
+          <Text style={styles.label}>EMAIL</Text>
+          <View style={styles.inputWrap}>
             <TextInput
-              style={[styles.input, { flex: 1, borderWidth: 0, marginBottom: 0 }]}
+              placeholder="example@gmail.com"
+              placeholderTextColor="#A8B0BF"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <Text style={[styles.label, { marginTop: 16 }]}>MẬT KHẨU</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
               placeholder="••••••••••"
-              placeholderTextColor="#A0A5BA"
+              placeholderTextColor="#A8B0BF"
               value={password}
               onChangeText={setPassword}
+              style={styles.input}
               secureTextEntry={secure}
             />
-            <TouchableOpacity onPress={() => setSecure(!secure)}>
-              <Text>{secure ? '👁️' : '🙈'}</Text>
+            <TouchableOpacity onPress={() => setSecure(s => !s)} style={styles.eyeBtn}>
+              <Text style={styles.eyeText}>{secure ? '👁️' : '🙈'}</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity 
-            style={styles.forgotPass}
-            onPress={() => navigation.navigate('ForgotPassword')}
-          >
-            <Text style={styles.forgotText}>Quên mật khẩu?</Text>
-          </TouchableOpacity>
-
-          <View style={{ marginTop: 30 }}>
-            <PrimaryButton 
-              title="ĐĂNG NHẬP" 
-              onPress={handleLogin} 
-              loading={loading}
-            />
+          <View style={styles.rowBetween}>
+            <TouchableOpacity style={styles.row} onPress={() => setRemember(r => !r)}>
+              <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
+                {remember && <View style={styles.checkboxDot} />}
+              </View>
+              <Text style={styles.rememberText}>Nhớ mật khẩu</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword' as never)}>
+              <Text style={styles.linkWarn}>Quên mật khẩu</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.orContainer}>
-            <View style={styles.orLine} />
-            <Text style={styles.orText}>hoặc</Text>
-            <View style={styles.orLine} />
+          <PrimaryButton title="Đăng nhập" onPress={handleLoginPress} loading={loading} />
+
+          <View style={styles.centerRow}>
+            <Text style={styles.muted}>Chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup' as never)}>
+              <Text style={styles.linkWarn}>Đăng ký</Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={loading}>
-            <Text style={styles.googleIconText}>G</Text>
-            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
-          </TouchableOpacity>
+          <View style={styles.dividerWrap}>
+            <View style={styles.divider} />
+            <Text style={styles.muted}>Hoặc</Text>
+            <View style={styles.divider} />
+          </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Bạn chưa có tài khoản? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.signupText}>Đăng ký ngay</Text>
+          <View style={styles.socialColumn}>
+            <TouchableOpacity 
+                style={[styles.socialBtn, { backgroundColor: '#ff0000ff', opacity: loadingGoogle ? 0.7 : 1 }]}
+                onPress={handleGoogleLogin}
+                disabled={loadingGoogle}
+            >
+              <View style={styles.socialBtnContent}>
+                <View style={styles.socialLeft}> 
+                  <Text style={styles.socialIcon}>G+</Text>
+                  <View style={styles.socialDivider} />
+                </View>
+                <Text style={styles.socialText}>
+                    {loadingGoogle ? 'Đang xử lý...' : 'Đăng nhập với Google'}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
+const ORANGE = colors.primary;
+const DARK = '#0f1222';
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0f1222' },
-  backBtn: { margin: 16, width: 40, height: 40, backgroundColor: 'white', borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  backIcon: { fontSize: 24, fontWeight: 'bold' },
-  content: { flex: 1, backgroundColor: 'white', marginTop: 50, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24 },
-  header: { alignItems: 'center', marginBottom: 30 },
-  title: { fontSize: 30, fontWeight: 'bold', color: '#32343E' },
-  subtitle: { color: '#9C9BA6', marginTop: 8 },
-  form: { flex: 1 },
-  label: { color: '#32343E', fontWeight: 'bold', fontSize: 13, marginBottom: 8 },
-  input: { backgroundColor: '#F0F5FA', borderRadius: 10, height: 50, paddingHorizontal: 16, color: '#32343E' },
-  passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F5FA', borderRadius: 10, paddingRight: 16, marginBottom: 10 },
-  forgotPass: { alignSelf: 'flex-end', marginTop: 8 },
-  forgotText: { color: colors.primary, fontWeight: 'bold' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
-  footerText: { color: '#646982' },
-  signupText: { color: colors.primary, fontWeight: 'bold' },
-  orContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
-  orLine: { flex: 1, height: 1, backgroundColor: '#E0E0E0' },
-  orText: { marginHorizontal: 10, color: '#646982', fontSize: 14 },
-  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, height: 50, marginBottom: 20 },
-  googleIconText: { fontSize: 20, fontWeight: 'bold', color: '#4285F4', marginRight: 10 },
-  googleButtonText: { color: '#32343E', fontSize: 16, fontWeight: 'bold' },
+  root: { flex: 1,backgroundColor: DARK },
+  hero: { backgroundColor: DARK, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 60, marginTop: 100, justifyContent: 'center', alignItems: 'center', marginBottom: 60, flex: 1 },
+  title: { color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center' },
+  subtitle: { color: '#C9CFDA', fontSize: 15, textAlign: 'center', marginTop: 8 },
+  card: { backgroundColor: '#ffffffff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24, paddingHorizontal: 20, paddingTop: 24, minHeight: '60%' },
+  label: { color: '#6B7280', fontWeight: '700', fontSize: 12, marginBottom: 8 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2F7', borderRadius: 14, paddingHorizontal: 16, height: 52 },
+  input: { flex: 1, color: '#111827', fontSize: 16 },
+  eyeBtn: { paddingLeft: 8, paddingVertical: 6 },
+  eyeText: { fontSize: 18 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 25 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
+  checkboxChecked: { borderColor: ORANGE, backgroundColor: '#fff' },
+  checkboxDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: ORANGE, padding: 6.5 },
+  rememberText: { marginLeft: 8, color: '#6B7280' },
+  centerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 18 },
+  linkWarn: { color: ORANGE, fontWeight: '700' },
+  muted: { color: '#9CA3AF' },
+  dividerWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18, justifyContent: 'center' },
+  divider: { height: 1, backgroundColor: '#E5E7EB', width: 80 },
+  socialColumn: { flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', marginTop: 16, paddingBottom: 12, width: '100%' },
+  socialBtn: { height: 54, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingLeft: 16, width: '100%', marginVertical: 8 },
+  socialText: { color: colors.white, fontSize: 20, fontWeight: '600', flex: 1, marginLeft: 8 },
+  socialBtnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  socialLeft: { width: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  socialIcon: { color: colors.white, fontSize: 25, fontWeight: '800', marginRight: 30 },
+  socialDivider: { width: 2, height: 24, backgroundColor: 'rgba(255,255,255,1)', marginHorizontal: 10, position: 'absolute', left: 32 },
 });

@@ -59,41 +59,47 @@ const registerUser = async (userData) => {
   }
 };
 
-// 3. GOOGLE LOGIN
-const GOOGLE_LOGIN_MUTATION = gql`
-  mutation GoogleLogin($idToken: String!) {
-    googleLogin(idToken: $idToken) {
-      token
-      user {
-        id
-        name
-        email
-        phone
-        role
-        avatar
-        isVerified
-      }
-    }
-  }
-`;
-
+// 3. GOOGLE LOGIN (QUAN TRỌNG: Dùng FETCH thay vì GraphQL)
 const googleLoginApi = async () => {
   try {
-    // Get Google user info
     await GoogleSignin.hasPlayServices();
-    const userInfo = await GoogleSignin.signIn();
-    const idToken = userInfo.data.idToken;
+    try { await GoogleSignin.signOut(); } catch (e) {} // Logout user cũ để chọn lại
 
-    // Send to backend
-    const { data } = await client.mutate({
-      mutation: GOOGLE_LOGIN_MUTATION,
-      variables: { idToken },
+    const response = await GoogleSignin.signIn();
+
+    // Lấy idToken từ response (hỗ trợ cả v16 mới và cũ)
+    const idToken = response.data?.idToken || response.idToken;
+
+    if (!idToken) {
+      return { success: false, error: 'Không lấy được ID Token từ Google' };
+    }
+
+    // --- GỌI REST API ---
+    const apiUrl = `${BASE_URL}/api/auth/google`; 
+    console.log('Calling Google Login API:', apiUrl);
+
+    const serverRes = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
     });
 
-    return { success: true, ...data.googleLogin };
+    const serverData = await serverRes.json();
+
+    if (!serverRes.ok) {
+        return { success: false, error: serverData.error || 'Lỗi server' };
+    }
+
+    return { success: true, ...serverData };
+
   } catch (error) {
-    console.error('Google Login Error:', error);
-    return { success: false, error: error.message };
+    if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+      return { success: false, error: 'User cancelled' };
+    }
+    console.error('Google Service Error:', error);
+    return { success: false, error: error.message || 'Lỗi kết nối' };
   }
 };
 
