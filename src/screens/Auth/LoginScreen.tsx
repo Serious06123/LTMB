@@ -1,374 +1,189 @@
 import React, { useState } from 'react';
-import { useEffect } from 'react';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
+  Image,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// import type { AppNavigationProp } from '../../app/navigationTypes';
-
-import PrimaryButton from '../../components/button/PrimaryButton';
 import { useDispatch } from 'react-redux';
-import { setToken } from '../../features/general/generalSlice';
+// Import action setLogin từ Redux Slice của bạn
+import { setLogin } from '../../features/general/generalSlice'; 
+import authService from '../../services/authService';
+import PrimaryButton from '../../components/button/PrimaryButton';
 import { colors } from '../../theme';
-
-// 1. Import hook và gql từ Apollo Client
-import { gql } from '@apollo/client';
-import { useMutation } from '@apollo/client/react';
-import ForgotPassword from './ForgotPassword';
-
-//import Icon from 'react-native-vector-icons/AntDesign';
-// 2. Định nghĩa câu lệnh Mutation 
-const LOGIN_MUTATION = gql`
-  mutation Login($email: String!, $password: String!) {
-    login(email: $email, password: $password) {
-      success
-      token
-      error
-    }
-  }
-`;
-
-interface LoginResponse {
-  login: {
-    success: boolean;
-    token: string;
-    error?: string;
-  };
-}
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 export default function LoginScreen() {
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: '119176780470-1i0qq7puerhvf7p646lsib8epjh25jp3.apps.googleusercontent.com',
-    });
-  }, []);
-  const [email, setEmail] = useState<string>('123@gmail.com');
-  const [password, setPassword] = useState<string>('123');
-  const [secure, setSecure] = useState<boolean>(true);
-  const [remember, setRemember] = useState<boolean>(false);
-  // 4. Sử dụng hook useMutation
-  // Biến 'loading' sẽ tự động được Apollo quản lý
-  const [login, { loading, error }] = useMutation<LoginResponse>(LOGIN_MUTATION);
-
-  const navigation = useNavigation();
+  // Đổi tên state email -> identifier cho đúng ý nghĩa
+  const [identifier, setIdentifier] = useState(''); 
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const [secure, setSecure] = useState(true);
+  const navigation = useNavigation<any>();
   const dispatch = useDispatch();
 
-  // Hàm xử lý đăng nhập với Google
-  const handleGoogleLogin = async () => {
+  const handleLogin = async () => {
+    if (!identifier.trim() || !password.trim()) {
+      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+
+    setLoading(true);
     try {
-        await GoogleSignin.hasPlayServices();
-        await GoogleSignin.signOut(); // Đảm bảo đăng xuất trước khi đăng nhập lại
-        const userInfo = await GoogleSignin.signIn();
-        // Xử lý userInfo ở đây (gửi lên server, lưu state, ...)
-          console.log('Google user info:', userInfo);
-          // Gửi idToken lên backend để lưu user vào DB
-          // Lấy idToken từ userInfo hoặc userInfo.user
-          const idToken = userInfo?.data?.idToken;
-          if (!idToken) {
-            console.log('userInfo object:', userInfo);
-            //Alert.alert('Lỗi', 'Bạn đã hủy đăng nhập Google.');
-            return;
-          }
-          // Gọi API backend
-          const res = await fetch('http://10.0.2.2:4000/api/auth/google', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken }),
-          });
-          const json = await res.json();
-          if (!res.ok || !json.success) {
-            Alert.alert('Lỗi', json.error || 'Đăng nhập Google thất bại.');
-            return;
-          }
-          // Lưu user vào AsyncStorage
-          await AsyncStorage.setItem('user', JSON.stringify(json.user));
-          //Alert.alert('Đăng nhập Google thành công!', `Xin chào ${json.user.name}`);
-          // Chuyển hướng sang màn hình chính
-          navigation.navigate('CustomerTabs' as never);
-    } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // user cancel
-      } else if (error.code === statusCodes.IN_PROGRESS) {
-        // operation (e.g. sign in) is in progress already
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('Lỗi', 'Google Play Services không khả dụng hoặc đã lỗi thời.');
+      // Gọi API Login
+      const result = await authService.loginApi(identifier, password);
+
+      if (result.success) {
+        // 1. Lưu vào Redux
+        dispatch(setLogin({ 
+          token: result.token, 
+          user: result.user 
+        }));
+
+        // 2. Thông báo & Chuyển trang (Redux tự chuyển nếu đã setup navigation, hoặc tự navigate)
+        // Nếu App.tsx/Navigation.tsx lắng nghe isLoggedIn thì không cần dòng này
+        // Alert.alert('Thành công', 'Đăng nhập thành công!'); 
+        
       } else {
-        // some other error
-        console.error(error);
-        Alert.alert('Lỗi', 'Đăng nhập Google thất bại.');
+        // Xử lý lỗi
+        Alert.alert('Đăng nhập thất bại', result.error);
+        
+        // Nếu lỗi là do chưa xác thực -> Gợi ý nhập OTP
+        if (result.error?.includes('chưa được xác thực')) {
+            // Có thể thêm nút chuyển sang trang OTP nếu muốn
+            navigation.navigate('OTPVerify', { email: identifier, isSignup: true });
+        }
       }
+    } catch (e) {
+      Alert.alert('Lỗi', 'Có lỗi xảy ra, vui lòng thử lại sau.');
+    } finally {
+      setLoading(false);
     }
   };
 
-
-  // 5. Cập nhật hàm handleLoginPress
-  const handleLoginPress = async () => {
-  // Vẫn kiểm tra loading
-    if (loading) return;
-      
+  const handleGoogleLogin = async () => {
+    setLoading(true);
     try {
-      // Gọi mutation
-      const { data } = await login({
-        variables: {
-          email: email,
-          password: password,
-        },
-      });
-
-      // Lấy kết quả từ data.login (tên của mutation)
-      if (!data || !data.login) {
-        Alert.alert('Lỗi', 'Không nhận được phản hồi từ máy chủ.');
-        return;
-      }
-      const result = data.login;
+      const result = await authService.googleLoginApi();
 
       if (result.success) {
-
-        // === PHẦN SỬA LỖI ===
-        try {
-          // 1. Lưu token vào bộ nhớ vĩnh viễn
-          await AsyncStorage.setItem('userToken', result.token);
-
-          // // 2. Nạp token vào Redux. 
-          // //    Navigator sẽ tự động chuyển màn hình sau dòng này.
-          dispatch(setToken(result.token));
-
-          // // 3. XÓA BỎ DÒNG GÂY LỖI:
-          navigation.navigate('CustomerTabs' as never); 
-
-        } catch (e) {
-          console.error('Lỗi khi lưu token:', e);
-          Alert.alert('Lỗi', 'Không thể lưu phiên đăng nhập.');
-        }
-        // === KẾT THÚC SỬA LỖI ===
-
+        dispatch(setLogin({ 
+          token: result.token, 
+          user: result.user 
+        }));
       } else {
-        Alert.alert('Thất bại', result.error || 'Đã có lỗi xảy ra');
+        Alert.alert('Đăng nhập thất bại', result.error);
       }
-
     } catch (e) {
-      // Bắt lỗi mạng hoặc lỗi server
-      console.error('Lỗi khi gọi mutation:', e);
-      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.');
+      Alert.alert('Lỗi', 'Có lỗi xảy ra, vui lòng thử lại sau.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.root}>
-      <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        enableOnAndroid={true}
-        extraScrollHeight={60}
-      >
-        {/* ===== Header dark area ===== */}
-        <View style={styles.hero}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Text style={styles.backIcon}>‹</Text>
+      </TouchableOpacity>
+
+      <View style={styles.content}>
+        <View style={styles.header}>
           <Text style={styles.title}>Đăng nhập</Text>
-          <Text style={styles.subtitle}>Vui lòng đăng nhập vào tài khoản của bạn</Text>
-          {/* <View style={styles.heroBottomCurve} /> */}
+          <Text style={styles.subtitle}>Chào mừng bạn quay trở lại</Text>
         </View>
 
-        {/* ===== Form card ===== */}
-        <View style={styles.card}>
-          {/* Email */}
-          <Text style={styles.label}>EMAIL</Text>
-          <View style={styles.inputWrap}>
-            <TextInput
-              placeholder="example@gmail.com"
-              placeholderTextColor="#A8B0BF"
-              value={email}
-              onChangeText={setEmail}
-              style={styles.input}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          {/* Password */}
-          <Text style={[styles.label, { marginTop: 16 }]}>MẬT KHẨU</Text>
-          <View style={styles.inputWrap}>
-            <TextInput
-              placeholder="••••••••••"
-              placeholderTextColor="#A8B0BF"
-              value={password}
-              onChangeText={setPassword}
-              style={styles.input}
-              secureTextEntry={secure}
-            />
-            <TouchableOpacity
-              onPress={() => setSecure(s => !s)}
-              style={styles.eyeBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.eyeText}>{secure ? '👁️' : '🙈'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Remember + Forgot */}
-          <View style={styles.rowBetween}>
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => setRemember(r => !r)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
-                {remember && <View style={styles.checkboxDot} />}
-              </View>
-              <Text style={styles.rememberText}>Nhớ mật khẩu</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => {try {navigation.navigate(ForgotPassword as never);} catch (e) {navigation.goBack();}}}>
-              <Text style={styles.linkWarn}>Quên mật khẩu</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 6. Truyền biến 'loading' từ hook useMutation vào button */}
-          <PrimaryButton
-            title="Đăng nhập"
-            onPress={handleLoginPress}
-            loading={loading} 
+        <View style={styles.form}>
+          <Text style={styles.label}>EMAIL HOẶC SỐ ĐIỆN THOẠI</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="example@gmail.com hoặc 0912..."
+            placeholderTextColor="#A0A5BA"
+            value={identifier}
+            onChangeText={setIdentifier}
+            autoCapitalize="none"
           />
 
-          {/* Sign up line */}
-          <View style={styles.centerRow}>
-            <Text style={styles.muted}>Chưa có tài khoản? </Text>
-            <TouchableOpacity onPress={() => { try { navigation.navigate('Signup' as never); } catch (e) { navigation.navigate('Signup' as never); } }}>
-              <Text style={styles.linkWarn}>Đăng ký</Text>
+          <Text style={[styles.label, { marginTop: 20 }]}>MẬT KHẨU</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, { flex: 1, borderWidth: 0, marginBottom: 0 }]}
+              placeholder="••••••••••"
+              placeholderTextColor="#A0A5BA"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={secure}
+            />
+            <TouchableOpacity onPress={() => setSecure(!secure)}>
+              <Text>{secure ? '👁️' : '🙈'}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={styles.dividerWrap}>
-            <View style={styles.divider} />
-            <Text style={styles.muted}>Hoặc</Text>
-            <View style={styles.divider} />
+          <TouchableOpacity 
+            style={styles.forgotPass}
+            onPress={() => navigation.navigate('ForgotPassword')}
+          >
+            <Text style={styles.forgotText}>Quên mật khẩu?</Text>
+          </TouchableOpacity>
+
+          <View style={{ marginTop: 30 }}>
+            <PrimaryButton 
+              title="ĐĂNG NHẬP" 
+              onPress={handleLogin} 
+              loading={loading}
+            />
           </View>
 
-          {/* Social buttons */}
-          <View style={styles.socialColumn}>
-            <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#ff0000ff' }]}
-             onPress={handleGoogleLogin}>
-              <View style={styles.socialBtnContent}>
-                <View style={styles.socialLeft}> 
-                  <Text style={styles.socialIcon}>G+</Text>
-                  <View style={styles.socialDivider} />
-                </View>
-                <Text style={styles.socialText}>Đăng nhập với Google</Text>
-              </View>
+          <View style={styles.orContainer}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>hoặc</Text>
+            <View style={styles.orLine} />
+          </View>
+
+          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={loading}>
+            <Text style={styles.googleIconText}>G</Text>
+            <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+          </TouchableOpacity>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Bạn chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.signupText}>Đăng ký ngay</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
-const ORANGE = colors.primary;
-const DARK = '#0f1222';
-
 const styles = StyleSheet.create({
-  root: { flex: 1,backgroundColor: DARK },
-  hero: {
-    backgroundColor: DARK,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 60,
-    marginTop: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 60,
-    flex: 1,
-  },
-  title: { color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center', },
-  subtitle: {
-    color: '#C9CFDA',
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  heroBottomCurve: {
-    position: 'absolute',
-    bottom: -100,
-    left: 0,
-    right: 0,
-    height: 56,
-    backgroundColor: '#ffffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-
-  card: {
-    backgroundColor: '#ffffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -24,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    minHeight: '60%',
-    //flex: 1,
-  },
-
-  label: { color: '#6B7280', fontWeight: '700', fontSize: 12, marginBottom: 8 },
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2F7',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 52,
-  },
-  input: { flex: 1, color: '#111827', fontSize: 16 },
-  eyeBtn: { paddingLeft: 8, paddingVertical: 6 },
-  eyeText: { fontSize: 18 },
-
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 25 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  checkbox: {
-    width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#D1D5DB',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxChecked: { borderColor: ORANGE, backgroundColor: '#fff' },
-  checkboxDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: ORANGE, padding: 6.5 },
-  rememberText: { marginLeft: 8, color: '#6B7280', },
-
-  centerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 18 },
-  linkWarn: { color: ORANGE, fontWeight: '700' },
-  muted: { color: '#9CA3AF' },
-
-  dividerWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18, justifyContent: 'center' },
-  divider: { height: 1, backgroundColor: '#E5E7EB', width: 80 },
-
-  socialColumn: { flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', marginTop: 16, paddingBottom: 12, width: '100%' },
-  socialBtn: {
-    height: 54,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 16,
-    width: '100%',
-    marginVertical: 8,
-  },
-  socialText: { color: colors.white, fontSize: 20, fontWeight: '600', flex: 1, marginLeft: 8 },
-  socialBtnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  socialLeft: { width: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  socialIcon: { color: colors.white, fontSize: 25, fontWeight: '800', marginRight: 30 },
-  socialDivider: { 
-    width: 2, 
-    height: 24, 
-    backgroundColor: 'rgba(255,255,255,1)', 
-    marginHorizontal: 10, 
-    position: 'absolute',
-    left: 32,
-  },
+  root: { flex: 1, backgroundColor: '#0f1222' },
+  backBtn: { margin: 16, width: 40, height: 40, backgroundColor: 'white', borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 24, fontWeight: 'bold' },
+  content: { flex: 1, backgroundColor: 'white', marginTop: 50, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24 },
+  header: { alignItems: 'center', marginBottom: 30 },
+  title: { fontSize: 30, fontWeight: 'bold', color: '#32343E' },
+  subtitle: { color: '#9C9BA6', marginTop: 8 },
+  form: { flex: 1 },
+  label: { color: '#32343E', fontWeight: 'bold', fontSize: 13, marginBottom: 8 },
+  input: { backgroundColor: '#F0F5FA', borderRadius: 10, height: 50, paddingHorizontal: 16, color: '#32343E' },
+  passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F5FA', borderRadius: 10, paddingRight: 16, marginBottom: 10 },
+  forgotPass: { alignSelf: 'flex-end', marginTop: 8 },
+  forgotText: { color: colors.primary, fontWeight: 'bold' },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
+  footerText: { color: '#646982' },
+  signupText: { color: colors.primary, fontWeight: 'bold' },
+  orContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  orLine: { flex: 1, height: 1, backgroundColor: '#E0E0E0' },
+  orText: { marginHorizontal: 10, color: '#646982', fontSize: 14 },
+  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, height: 50, marginBottom: 20 },
+  googleIconText: { fontSize: 20, fontWeight: 'bold', color: '#4285F4', marginRight: 10 },
+  googleButtonText: { color: '#32343E', fontSize: 16, fontWeight: 'bold' },
 });

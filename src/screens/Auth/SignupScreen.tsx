@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,50 +16,40 @@ import { colors } from '../../theme';
 
 // 1. Import Apollo
 import { gql } from '@apollo/client';
-import { useMutation , useQuery } from '@apollo/client/react';
-// 2. Định nghĩa Mutation
+import { useMutation } from '@apollo/client/react';
+
+// 2. Định nghĩa Mutation (Khớp với TypeDefs Backend mới)
+// Lưu ý: Backend trả về String (message) nên query không cần sub-fields như id, name
 const REGISTER_MUTATION = gql`
-  mutation Register($name: String!, $email: String!, $password: String!) {
-    register(name: $name, email: $email, password: $password) {
-      success
-      error
-      user {
-        id
-        name
-        email
-      }
-    }
+  mutation Register($name: String!, $email: String!, $password: String!, $phone: String!, $role: String) {
+    register(name: $name, email: $email, password: $password, phone: $phone, role: $role)
   }
 `;
 
 interface RegisterResponse {
-  register: {
-    success: boolean;
-    error?: string;
-    user?: {
-      id: string;
-      name: string;
-      email: string;
-    };
-  };
+  register: string; // Backend trả về chuỗi thông báo
 }
 
 export default function SignupScreen() {
   const [name, setName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>(''); // Thêm state Phone
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [role, setRole] = useState<string>('customer'); // Thêm state Role (mặc định customer)
+  
   const [secure, setSecure] = useState<boolean>(true);
   const [secureConfirm, setSecureConfirm] = useState<boolean>(true);
 
-  const navigation = useNavigation();
+  // Ép kiểu any để TypeScript bỏ qua kiểm tra chặt chẽ
+  const navigation = useNavigation<any>();
 
   // 3. Khởi tạo hook mutation
   const [registerApi, { loading }] = useMutation<RegisterResponse>(REGISTER_MUTATION);
 
   const handleRegister = async () => {
     // Validate cơ bản
-    if (!name.trim() || !email.trim() || !password) {
+    if (!name.trim() || !email.trim() || !phone.trim() || !password) {
       Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin.');
       return;
     }
@@ -71,29 +62,46 @@ export default function SignupScreen() {
       // 4. Gọi API
       const { data } = await registerApi({
         variables: {
-          name: name,
-          email: email,
-          password: password,
+          name,
+          email,
+          password,
+          phone,
+          role
         },
       });
 
-      if (data?.register?.success) {
+      // Backend trả về message string nếu thành công
+      if (data?.register) {
         Alert.alert(
-          'Thành công', 
-          'Tài khoản đã được tạo! Vui lòng đăng nhập.',
+          'Đăng ký thành công', 
+          `${data.register}`, // Hiển thị thông báo từ backend
           [
-            { text: 'OK', onPress: () => navigation.navigate('Login' as never) }
+            { 
+              text: 'Nhập OTP', 
+              // Chuyển sang màn hình xác thực OTP, truyền theo email để verify
+              // Bỏ hết "as never" đi
+              onPress: () => navigation.navigate('OTPVerify', { email: email , isSignup: true })
+            }
           ]
         );
-      } else {
-        Alert.alert('Đăng ký thất bại', data?.register?.error || 'Có lỗi xảy ra.');
-      }
-
-    } catch (e) {
+      } 
+    } catch (e: any) {
       console.error(e);
-      Alert.alert('Lỗi mạng', 'Không thể kết nối đến máy chủ.');
+      // Lấy lỗi từ GraphQL trả về
+      const errorMessage = e.message || 'Có lỗi xảy ra.';
+      Alert.alert('Đăng ký thất bại', errorMessage);
     }
   };
+
+  // Component chọn Role đơn giản
+  const RoleOption = ({ value, label }: { value: string, label: string }) => (
+    <TouchableOpacity 
+      style={[styles.roleBtn, role === value && styles.roleBtnActive]}
+      onPress={() => setRole(value)}
+    >
+      <Text style={[styles.roleText, role === value && styles.roleTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.root}>
@@ -101,7 +109,7 @@ export default function SignupScreen() {
         contentContainerStyle={{ flexGrow: 1 }}
         enableOnAndroid={true}
         extraScrollHeight={60} 
-        >
+      >
         <TouchableOpacity
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
@@ -115,7 +123,16 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>HỌ VÀ TÊN</Text>
+          {/* --- CHỌN ROLE --- */}
+          <Text style={styles.label}>BẠN LÀ?</Text>
+          <View style={styles.roleContainer}>
+            <RoleOption value="customer" label="Khách hàng" />
+            <RoleOption value="restaurant" label="Nhà hàng" />
+            <RoleOption value="shipper" label="Tài xế" />
+          </View>
+
+          {/* --- HỌ TÊN --- */}
+          <Text style={[styles.label, { marginTop: 16 }]}>HỌ VÀ TÊN</Text>
           <View style={styles.inputWrap}>
             <TextInput
               placeholder="Nhập họ và tên"
@@ -126,6 +143,7 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* --- EMAIL --- */}
           <Text style={[styles.label, { marginTop: 16 }]}>EMAIL</Text>
           <View style={styles.inputWrap}>
             <TextInput
@@ -139,6 +157,20 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* --- SỐ ĐIỆN THOẠI (Mới) --- */}
+          <Text style={[styles.label, { marginTop: 16 }]}>SỐ ĐIỆN THOẠI</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              placeholder="0912xxxxxx"
+              placeholderTextColor="#A8B0BF"
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.input}
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* --- MẬT KHẨU --- */}
           <Text style={[styles.label, { marginTop: 16 }]}>MẬT KHẨU</Text>
           <View style={styles.inputWrap}>
             <TextInput
@@ -157,6 +189,7 @@ export default function SignupScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* --- XÁC NHẬN MẬT KHẨU --- */}
           <Text style={[styles.label, { marginTop: 16 }]}>NHẬP LẠI MẬT KHẨU</Text>
           <View style={styles.inputWrap}>
             <TextInput
@@ -175,11 +208,13 @@ export default function SignupScreen() {
             </TouchableOpacity>
           </View>
 
-          <PrimaryButton 
-            title="Đăng ký" 
-            onPress={handleRegister} 
-            loading={loading} // Hiển thị vòng quay khi đang gọi API
-          />
+          <View style={{ marginTop: 24 }}>
+            <PrimaryButton 
+              title="Đăng ký" 
+              onPress={handleRegister} 
+              loading={loading} 
+            />
+          </View>
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
@@ -193,14 +228,14 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: DARK },
   hero: {
     backgroundColor: DARK,
-    paddingTop: 24,
+    paddingTop: 10,
     paddingHorizontal: 24,
-    paddingBottom: 60,
-    marginTop: 50,
+    paddingBottom: 50,
+    marginTop: 30,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    flex: 1
+    flex: 0.3 // Giảm chiều cao phần header chút để dành chỗ cho form dài hơn
   },
   title: { color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: '#C9CFDA', fontSize: 15, textAlign: 'center', marginTop: 8, },
@@ -213,6 +248,7 @@ const styles = StyleSheet.create({
     marginTop: -28,
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 40
   },
 
   label: { color: '#6B7280', fontWeight: '700', fontSize: 12, marginBottom: 8 },
@@ -229,8 +265,10 @@ const styles = StyleSheet.create({
   eyeText: { fontSize: 18 },
 
   backBtn: {
+    position: 'absolute', // Sửa lại vị trí nút back cho đẹp
     left: 20,
-    top: 40,
+    top: 50,
+    zIndex: 10,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -239,4 +277,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backIcon: { fontSize: 22, color: DARK },
+
+  // Style cho phần chọn Role
+  roleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  roleBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#EEF2F7',
+    borderRadius: 10,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  roleBtnActive: {
+    backgroundColor: '#FFF0E6', // Màu cam nhạt
+    borderColor: ORANGE,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280'
+  },
+  roleTextActive: {
+    color: ORANGE,
+    fontWeight: '700'
+  }
 });

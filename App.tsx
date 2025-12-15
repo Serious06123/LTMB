@@ -9,6 +9,13 @@ import Navigators from './src/app/navigation';
 import { ApolloProvider } from '@apollo/client/react';
 import client from './src/app/apolloClient';
 
+// Configure Google Sign-In
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: '119176780470-595viasb48pc5pkts6v9t0rib8hh77ev.apps.googleusercontent.com', // From google-services.json
+});
+
 export default function App() {
   return (
     <ApolloProvider client={client}>

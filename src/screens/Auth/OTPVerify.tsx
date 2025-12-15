@@ -1,233 +1,146 @@
-import React, {useRef, useState} from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState } from 'react';
 import {
-	View,
-	Text,
-	StyleSheet,
-	TextInput,
-	TouchableOpacity,
-	Alert,
-	Keyboard,
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
-import {useEffect} from 'react';
-import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import PrimaryButton from '../../components/button/PrimaryButton';
-import {colors} from '../../theme';
-import { StackNavigationProp } from '@react-navigation/stack';
-
-
-type RootStackParamList = {
-  ChangePasswordAuth: { email: string };
-};
+import { colors } from '../../theme';
+import { gql } from '@apollo/client';
+import { useMutation } from '@apollo/client/react';
+// Định nghĩa Mutation
+const VERIFY_OTP_MUTATION = gql`
+  mutation VerifyOtp($email: String!, $otp: String!) {
+    verifyOtp(email: $email, otp: $otp) {
+      token
+      user {
+        id
+        email
+        isVerified
+      }
+    }
+  }
+`;
 
 export default function OTPVerify() {
-	const [digits, setDigits] = useState(['', '', '', '']);
-	const inputs = [useRef<TextInput | null>(null), useRef<TextInput | null>(null), useRef<TextInput | null>(null), useRef<TextInput | null>(null)];
+  const [otp, setOtp] = useState('');
+  
+  // 1. Ép kiểu any cho navigation để tránh lỗi
+  const navigation = useNavigation<any>();
+  
+  // 2. Lấy tham số từ màn hình trước (Signup/ForgotPass)
+  const route = useRoute<any>();
+  const { email, isSignup } = route.params || {}; 
 
-	// Reset các ô OTP khi màn được focus
-	useFocusEffect(
-		React.useCallback(() => {
-			setDigits(['', '', '', '']);
-			inputs[0].current?.focus();
-		}, [])
-	);
-	const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-	const [cooldown, setCooldown] = useState(60);
+  // 3. Khởi tạo Mutation
+  const [verifyOtpApi, { loading }] = useMutation(VERIFY_OTP_MUTATION);
 
-	useEffect(() => {
-		if (cooldown > 0) {
-			const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
-			return () => clearTimeout(timer);
-		}
-	}, [cooldown]);
+  const handleVerify = async () => {
+    if (!otp || otp.length < 4) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mã OTP đầy đủ');
+      return;
+    }
 
-	const handleChange = (index: number, val: string) => {
-		if (!/^[0-9]?$/.test(val)) return;
-		const next = [...digits];
-		next[index] = val;
-		setDigits(next);
-		if (val && index < inputs.length - 1) {
-			inputs[index + 1].current?.focus();
-		}
-		if (!val && index > 0) {
-			// nếu xóa thì quay lại ô trước
-			inputs[index - 1].current?.focus();
-		}
-	};
+    try {
+      // Gọi API
+      // SỬA LỖI Ở ĐÂY: Thêm "as any" để lấy data mà không bị báo lỗi TypeScript
+      const response = await verifyOtpApi({
+        variables: { email, otp },
+      }) as any;
 
-	// Lấy email từ navigation params
-	const route = require('@react-navigation/native').useRoute();
-	const { email } = route.params;
+      const data = response.data;
 
-	const handleVerify = async () => {
-		const code = digits.join('');
-		if (code.length < 4) {
-			Alert.alert('Lỗi', 'Vui lòng nhập đủ 4 chữ số.');
-			return;
-		}
-		try {
-			const res = await fetch('http://10.0.2.2:4000/api/auth/verify-otp', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, otp: code }),
-			});
-			const data = await res.json();
-			if (data.success) {
-				//Alert.alert('Thành công', 'Mã OTP hợp lệ!');
-				navigation.navigate('ChangePasswordAuth', { email });
-			} else {
-				Alert.alert('Lỗi', data.error || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
-			}
-		} catch (e) {
-			Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
-		}
-	};
+      // Kiểm tra data
+      if (data?.verifyOtp) {
+        if (isSignup) {
+          // --- TRƯỜNG HỢP 1: ĐĂNG KÝ -> Về trang Login ---
+          Alert.alert(
+            'Xác thực thành công',
+            'Tài khoản đã được kích hoạt. Vui lòng đăng nhập.',
+            [
+              { 
+                text: 'Về đăng nhập', 
+                onPress: () => navigation.navigate('Login') 
+              }
+            ]
+          );
+        } else {
+          // --- TRƯỜNG HỢP 2: QUÊN MẬT KHẨU -> Sang trang Đổi mật khẩu ---
+          Alert.alert(
+            'Thành công',
+            'Vui lòng đặt lại mật khẩu mới.',
+            [
+              {
+                text: 'Tiếp tục',
+                onPress: () => navigation.navigate('ChangePasswordAuth', { email: email })
+              }
+            ]
+          );
+        }
+      }
+    } catch (error: any) {
+      console.log('Lỗi Verify:', error);
+      Alert.alert('Lỗi', error.message || 'Mã OTP không đúng hoặc đã hết hạn.');
+    }
+  };
 
-	const handleResend = async () => {
-		if (cooldown > 0) return;
-		try {
-			const res = await fetch('http://10.0.2.2:4000/api/auth/resend-otp', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email }),
-			});
-			const data = await res.json();
-			if (data.success) {
-				//Alert.alert('Thành công', 'Mã OTP đã được gửi lại.');
-				setDigits(['', '', '', '']);
-				inputs[0].current?.focus();
-				setCooldown(60);
-			} else {
-				Alert.alert('Lỗi', data.error || 'Không thể gửi lại mã OTP.');
-			}
-		} catch (e) {
-			Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
-		}
-	};
+  return (
+    <SafeAreaView style={styles.root}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Text style={styles.backIcon}>‹</Text>
+      </TouchableOpacity>
 
-	return (
-		<SafeAreaView style={styles.root}>
-			<KeyboardAwareScrollView 
-                contentContainerStyle={{flexGrow: 1}} 
-                enableOnAndroid 
-                extraScrollHeight={60}>
-				<View style={styles.hero}>
-					<Text style={styles.title}>Xác minh OTP</Text>
-					<Text style={styles.subtitle}>Nhập mã 4 chữ số đã gửi tới email</Text>
-				</View>
+      <View style={styles.content}>
+        <Text style={styles.title}>Xác thực OTP</Text>
+        <Text style={styles.subtitle}>
+          Mã xác thực đã được gửi đến email: {email}
+        </Text>
 
-                <TouchableOpacity
-                    style={styles.backBtn}
-                    onPress={() => { try { navigation.navigate('ForgotPassword' as never); } catch (e) { navigation.goBack(); } }}
-                    ><Text style={styles.backIcon}>‹</Text>
-                </TouchableOpacity>
+        <TextInput
+          style={styles.input}
+          placeholder="Nhập mã OTP (4 số)"
+          placeholderTextColor="#666"
+          keyboardType="number-pad"
+          maxLength={6}
+          value={otp}
+          onChangeText={setOtp}
+          autoFocus
+        />
 
-				<View style={styles.card}>
-					<View style={styles.otpRow}>
-						{digits.map((d, i) => (
-							<TextInput
-								key={i}
-								ref={inputs[i]}
-								value={d}
-								onChangeText={val => handleChange(i, val)}
-								keyboardType="number-pad"
-								maxLength={1}
-								style={styles.otpBox}
-								textAlign="center"
-								returnKeyType={i === 3 ? 'done' : 'next'}
-								onSubmitEditing={() => {
-									if (i < 3) inputs[i + 1].current?.focus(); else Keyboard.dismiss();
-								}}
-							/>
-						))}
-					</View>
-					<View style={styles.resendRow}>
-						<Text style={styles.muted}>Chưa nhận được mã? </Text>
-						<TouchableOpacity
-							onPress={handleResend}
-							disabled={cooldown > 0}
-							style={cooldown > 0 ? { opacity: 0.5 } : {}}
-						>
-							<Text style={cooldown > 0 ? styles.resendDisabled : styles.linkWarn}>
-								{cooldown > 0 ? `Gửi lại mã (${cooldown})` : 'Gửi lại mã'}
-							</Text>
-						</TouchableOpacity>
-					</View>
-					<PrimaryButton title="Xác minh" 
-					onPress={handleVerify} 
-					//onPress={ () => {navigation.navigate('ChangePasswordAuth' as never)}}
-					/>
-				</View>
-			</KeyboardAwareScrollView>
-		</SafeAreaView>
-	);
+        <PrimaryButton 
+          title="Xác nhận" 
+          onPress={handleVerify} 
+          loading={loading}
+        />
+        
+        <TouchableOpacity style={{marginTop: 20}}>
+           <Text style={{color: colors.primary, textAlign: 'center'}}>Gửi lại mã?</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 }
 
-const ORANGE = colors.primary;
-const DARK = '#0f1222';
-
 const styles = StyleSheet.create({
-	root: {flex: 1, backgroundColor: DARK},
-	hero: {
-		backgroundColor: DARK,
-		paddingTop: 24,
-		paddingHorizontal: 24,
-		paddingBottom: 60,
-		marginTop: 100,
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginBottom: 110,
-	},
-	title: {color: '#fff', fontSize: 32, fontWeight: '800', textAlign: 'center'},
-	subtitle: {color: '#C9CFDA', fontSize: 15, textAlign: 'center', marginTop: 8},
-
-	card: {
-		flex: 1,
-		backgroundColor: '#fff',
-		borderTopLeftRadius: 28,
-		borderTopRightRadius: 28,
-		marginTop: -28,
-		paddingHorizontal: 20,
-		paddingTop: 40,
-		alignItems: 'stretch',
-	},
-
-	otpRow: {flexDirection: 'row', justifyContent: 'space-between', width: '80%', marginBottom: 20, alignSelf: 'center'},
-	otpBox: {
-		width: 60,
-		height: 60,
-		borderRadius: 8,
-		backgroundColor: '#EEF2F7',
-		fontSize: 22,
-		color: '#111827',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-
-	resendRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 18, alignSelf: 'center'},
-	linkWarn: {color: ORANGE, fontWeight: '700'},
-	muted: {color: '#9CA3AF'},
-
-    backBtn: {
-        position: 'absolute',
-        left: 20,
-        top: 40,
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 20,
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-    },
-    backIcon: { fontSize: 22, color: DARK },
-	resendDisabled: { color: '#aaa', fontWeight: '700' },
+  root: { flex: 1, backgroundColor: '#fff' },
+  backBtn: { padding: 16, zIndex: 10 },
+  backIcon: { fontSize: 36, color: '#000' },
+  content: { flex: 1, paddingHorizontal: 24, paddingTop: 40 },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#000', marginBottom: 8 },
+  subtitle: { fontSize: 14, color: '#666', marginBottom: 32 },
+  input: {
+    height: 50,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    fontSize: 20,
+    marginBottom: 40,
+    textAlign: 'center',
+    letterSpacing: 5,
+    color: '#000'
+  },
 });
-

@@ -15,7 +15,7 @@ import PrimaryButton from '../../components/button/PrimaryButton';
 import { colors } from '../../theme';
 
 type RootStackParamList = {
-  OTPVerify: { email: string };
+  OTPVerify: { email: string; isSignup: boolean };
 };
 
 // Hàm kiểm tra định dạng email
@@ -44,7 +44,7 @@ export default function ForgotPassword() {
       });
       const data = await res.json();
       if (data.success) {
-        navigation.navigate('OTPVerify', { email });
+        navigation.navigate('OTPVerify', { email:email , isSignup: false });
       } else {
         Alert.alert('Lỗi', data.message || 'Gửi mã thất bại. Vui lòng thử lại.');
       }
