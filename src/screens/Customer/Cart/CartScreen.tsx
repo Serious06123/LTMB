@@ -11,9 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/AntDesign'; 
-import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images.js';
-
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 // --- 1. CẤU TRÚC DỮ LIỆU ---
 interface Product {
   id: string;

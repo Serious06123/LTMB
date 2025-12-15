@@ -9,9 +9,8 @@ import { colors } from '../theme';
 // Import các màn hình chính
 import MyFoodList from '../screens/Restaurant/MyFoodList';
 import RestaurantDashboard from '../screens/Restaurant/RestaurantDashboard';
-import NotificationScreen from '../screens/Notification/NotificationScreen';
+import NotificationScreen from '../screens/Customer/Notification/NotificationScreen';
 import AddNewItem from '../screens/Restaurant/AddNewItem';
-import ReviewsScreen from '../screens/Restaurant/ReviewsScreen';
 import ProfileScreen from '../screens/Restaurant/ProfileScreen';
 // Tạo Tab
 const Tab = createBottomTabNavigator();

@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { useNavigation , useRoute} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/AntDesign';
-import { colors } from '../../theme'; // Import màu từ theme
-import PrimaryButton from '../../components/button/PrimaryButton';
+import { colors } from '../../../theme'; // Import màu từ theme
+import PrimaryButton from '../../../components/button/PrimaryButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');

@@ -25,7 +25,7 @@ const REVIEWS = [
     foodName: 'Chicken Thai Biriyani', // <--- THÊM TÊN MÓN
     rating: 5,
     comment: 'Great Food and Service. This Food so tasty & delicious. Fast delivery.',
-    avatar: require('../../assets/images/introman1.png'), 
+    avatar: IMAGES.introman1, 
   },
   {
     id: '2',
@@ -34,7 +34,7 @@ const REVIEWS = [
     foodName: 'Pizza Seafood', // <--- THÊM TÊN MÓN
     rating: 4,
     comment: 'Awesome and Nice. Really like the cheese crust.',
-    avatar: require('../../assets/images/introman2.png'),
+    avatar: IMAGES.introman2,
   },
   {
     id: '3',
@@ -43,7 +43,7 @@ const REVIEWS = [
     foodName: 'Burger King Special', // <--- THÊM TÊN MÓN
     rating: 4,
     comment: 'Tasty but a bit cold when arrived.',
-    avatar: require('../../assets/images/introman3.png'),
+    avatar: IMAGES.introman3,
   },
 ];
 

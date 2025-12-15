@@ -7,7 +7,8 @@ import {
   Image,
   Pressable,
 } from 'react-native';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
@@ -42,7 +43,7 @@ const FoodDetailScreen = () => {
       {/* Image Placeholder */}
       <View style={styles.imageContainer}>
         <Image
-          source={require('../../assets/images/pizza1.png')}
+          source={IMAGES.pizza1}
           style={styles.imagePlaceholder}
         />
         <Pressable
@@ -57,7 +58,7 @@ const FoodDetailScreen = () => {
         </Pressable>
         <View style={styles.restaurantLabel}>
           <Image
-            source={require('../../assets/images/pizza1.png')}
+            source={IMAGES.pizza1}
             style={{ width: 30, height: 30, borderRadius: 15, marginRight: 8 }}
           />
           <Text>Uttora Coffee House</Text>

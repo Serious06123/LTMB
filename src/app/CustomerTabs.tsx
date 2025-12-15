@@ -6,11 +6,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { colors } from '../theme';
 
 // Import các màn hình của KHÁCH HÀNG
-import HomeScreen from '../screens/Home/HomeScreen';
-import SearchScreen from '../screens/Home/Search';
-import CartScreen from '../screens/Cart/CartScreen';
-import ProfileScreen from '../screens/Restaurant/ProfileScreen'; // Dùng chung Profile hoặc tạo riêng
-import MessageListScreen from '../screens/Orders/MessageListScreen';
+import HomeScreen from '../screens/Customer/Home/HomeScreen';
+import ProfileScreen from '../screens/Customer/Profile/ProfileScreen';
+import MessageListScreen from '../screens/Customer/Orders/MessageListScreen';
+import OrderHistoryScreen from '../screens/Customer/Orders/OrderHistoryScreen';
 const Tab = createBottomTabNavigator();
 
 
@@ -41,10 +40,10 @@ export default function CustomerTabs() {
         }}
       />
 
-      {/* 2. Search */}
+      {/* 2. History */}
       <Tab.Screen 
-        name="OrderedTab" 
-        component={CartScreen} 
+        name="HistoryTab" 
+        component={OrderHistoryScreen} 
         options={{
           tabBarIcon: ({ focused }) => (
             <Feather name="shopping-bag" size={24} color={focused ? colors.primary : '#ccc'} />

@@ -8,12 +8,13 @@ import {
   Pressable,
   FlatList,
 } from 'react-native';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Filter from '../../components/Filter';
+import Filter from '../../../components/Filter';
 
 const RestaurantViewScreen = () => {
   const navigation = useNavigation();
@@ -32,35 +33,35 @@ const RestaurantViewScreen = () => {
       name: 'Burger Bistro',
       restaurant: 'Spicy Restaurant',
       price: '$12.99',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '2',
       name: 'Cheese Burger',
       restaurant: 'Spicy Restaurant',
       price: '$10.99',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '3',
       name: 'Double Burger',
       restaurant: 'Spicy Restaurant',
       price: '$14.99',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '4',
       name: 'Veggie Burger',
       restaurant: 'Spicy Restaurant',
       price: '$9.99',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '5',
       name: 'Chicken Burger',
       restaurant: 'Spicy Restaurant',
       price: '$11.99',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
   ];
 
@@ -83,7 +84,7 @@ const RestaurantViewScreen = () => {
       {/* Image Placeholder */}
       <View style={styles.imageContainer}>
         <Image
-          source={require('../../assets/images/pizza1.png')}
+          source={IMAGES.pizza1}
           style={styles.imagePlaceholder}
         />
         <Pressable

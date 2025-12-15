@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import { colors } from '../../theme';
+import { IMAGES } from '../../constants/images';
 
 const { height } = Dimensions.get('window');
 
@@ -23,7 +24,7 @@ const RUNNING_ORDERS = [
     tag: '#Breakfast',
     orderId: '32053',
     price: '$60',
-    image: require('../../assets/images/pizza1.png'), // Thay ảnh thật của bạn
+    image: IMAGES.pizza1, // Thay ảnh thật của bạn
   },
   {
     id: '2',
@@ -31,7 +32,7 @@ const RUNNING_ORDERS = [
     tag: '#Breakfast',
     orderId: '15253',
     price: '$30',
-    image: require('../../assets/images/pizza2.png'),
+    image: IMAGES.pizza2,
   },
   {
     id: '3',
@@ -39,7 +40,7 @@ const RUNNING_ORDERS = [
     tag: '#Breakfast',
     orderId: '21200',
     price: '$35',
-    image: require('../../assets/images/introman2.png'),
+    image: IMAGES.introman2,
   },
   {
     id: '4',
@@ -47,7 +48,7 @@ const RUNNING_ORDERS = [
     tag: '#Breakfast',
     orderId: '53241',
     price: '$45',
-    image: require('../../assets/images/pizza1.png'),
+    image: IMAGES.pizza1,
   },
   {
     id: '5',
@@ -55,7 +56,7 @@ const RUNNING_ORDERS = [
     tag: '#Breakfast',
     orderId: '58464',
     price: '$25',
-    image: require('../../assets/images/introman4.png'),
+    image: IMAGES.introman4,
   },
 ];
 

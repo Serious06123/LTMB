@@ -10,8 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 
 // Dữ liệu giả: Các cuộc hội thoại
 const CONVERSATIONS = [
@@ -22,7 +22,7 @@ const CONVERSATIONS = [
     lastMessage: 'Hurry Up, Man',
     time: '8:12 pm',
     unread: 2,
-    avatar: IMAGES.shipperIcon || require('../../assets/images/introman1.png'),
+    avatar: IMAGES.shipperIcon || IMAGES.introman1,
     isOnline: true,
   },
   {

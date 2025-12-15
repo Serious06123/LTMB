@@ -11,8 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 
 // --- DỮ LIỆU GIẢ (Gộp cả 2 phần) ---
 const NOTIFICATIONS = [
@@ -21,7 +21,7 @@ const NOTIFICATIONS = [
     userName: 'Tanbir Ahmed',
     action: 'Placed a new order',
     time: '20 min ago',
-    userAvatar: require('../../assets/images/introman1.png'),
+    userAvatar: IMAGES.introman1,
     foodImage: IMAGES.pizza1,
     type: 'notification'
   },
@@ -30,7 +30,7 @@ const NOTIFICATIONS = [
     userName: 'Salim Smith',
     action: 'Left a 5 star review',
     time: '20 min ago',
-    userAvatar: require('../../assets/images/introman2.png'),
+    userAvatar: IMAGES.introman2,
     foodImage: IMAGES.burger1,
     type: 'notification'
   },
@@ -39,7 +39,7 @@ const NOTIFICATIONS = [
     userName: 'Royal Bengol',
     action: 'Agreed to cancel',
     time: '20 min ago',
-    userAvatar: require('../../assets/images/introman3.png'),
+    userAvatar: IMAGES.introman3,
     foodImage: IMAGES.pizza2,
     type: 'notification'
   },
@@ -53,7 +53,7 @@ const MESSAGES = [
     time: '19:37',
     unread: 1,
     online: true,
-    avatar: require('../../assets/images/introman1.png'), 
+    avatar: IMAGES.introman1, 
     type: 'message'
   },
   {
@@ -63,7 +63,7 @@ const MESSAGES = [
     time: '19:37',
     unread: 2,
     online: true,
-    avatar: require('../../assets/images/introman2.png'),
+    avatar: IMAGES.introman2,
     type: 'message'
   },
   {
@@ -73,7 +73,7 @@ const MESSAGES = [
     time: '19:37',
     unread: 0,
     online: true,
-    avatar: require('../../assets/images/introman3.png'),
+    avatar: IMAGES.introman3,
     type: 'message'
   },
 ];

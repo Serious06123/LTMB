@@ -6,28 +6,27 @@ import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import RestaurantTabs from './RestaurantTabs';
-import HomeScreen from '../screens/Home/HomeScreen';
 import LoginScreen from '../screens/Auth/LoginScreen';
-import CartScreen from '../screens/Cart/CartScreen';
+import CartScreen from '../screens/Customer/Cart/CartScreen';
 import IntroScreen from '../screens/Auth/Intro';
-import PaymentScreen from '../screens/Payment/PaymentScreen';
+import PaymentScreen from '../screens//Customer/Payment/PaymentScreen';
 import SignupScreen from '../screens/Auth/SignupScreen';
 import ForgotPassword from '../screens/Auth/ForgotPassword';
 import OTPVerify from '../screens/Auth/OTPVerify';
-import SearchScreen from '../screens/Home/Search';
-import FoodScreen from '../screens/Food/Food';
-import FoodDetailScreen from '../screens/Food/FoodDetail';
-import LocationAccessScreen from '../screens/Home/LocationAccess';
-import RestaurantViewScreen from '../screens/Food/RestaurantView';
-import MapScreen from '../screens/Map/MapScreen';
-import TrackOrderScreen from '../screens/Orders/TrackOrderScreen';
+import SearchScreen from '../screens//Customer/Home/Search';
+import FoodScreen from '../screens//Customer/Food/Food';
+import FoodDetailScreen from '../screens//Customer/Food/FoodDetail';
+import LocationAccessScreen from '../screens//Customer/Home/LocationAccess';
+import RestaurantViewScreen from '../screens//Customer/Food/RestaurantView';
+import MapScreen from '../screens//Customer/Map/MapScreen';
+import TrackOrderScreen from '../screens//Customer/Orders/TrackOrderScreen';
 import RestaurantDashboard from '../screens/Restaurant/RestaurantDashboard';
 import RunningOrders from '../screens/Restaurant/RunningOrders';
 import FoodDetailRestaurant from '../screens/Restaurant/FoodDetailRestaurant';
 import ReviewsScreen from '../screens/Restaurant/ReviewsScreen';
 import CustomerTabs from './CustomerTabs'; // Import file mới tạo
-import MessageListScreen from '../screens/Orders/MessageListScreen'; // Import MessageList
-import ChatScreen from '../screens/Orders/ChatScreen';
+import MessageListScreen from '../screens//Customer/Orders/MessageListScreen'; // Import MessageList
+import ChatScreen from '../screens//Customer/Orders/ChatScreen';
 import ChangePasswordAuth from '../screens/Auth/ChangePasswordAuth';
 import ShipperTabs from './ShipperTabs';
 
@@ -40,7 +39,6 @@ export default function Navigators() {
         initialRouteName="LocationAccess"
         screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Intro" component={IntroScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="LocationAccess" component={LocationAccessScreen} />

@@ -8,13 +8,13 @@ import {
   Image,
   Pressable,
 } from 'react-native';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
-
+import { IMAGES } from '../../../constants/images';
 const FoodScreen = () => {
   const navigation = useNavigation();
   const goBack = () => {
@@ -32,42 +32,42 @@ const FoodScreen = () => {
       name: 'Burger Bistro',
       restaurant: 'Rose Garden',
       price: '$40',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: 2,
       name: 'Smokin’ Burger',
       restaurant: 'Cafeteria Restaurant',
       price: '$60',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: 3,
       name: 'Buffalo Burgers',
       restaurant: 'Kaiji Firm Kitchen',
       price: '$75',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: 4,
       name: 'Bullseye Burgers',
       restaurant: 'Kabab Restaurant',
       price: '$94',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: 5,
       name: 'Kimmi Burgers',
       restaurant: 'Kabab Restaurant',
       price: '$94',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: 6,
       name: 'Charset Burgers',
       restaurant: 'Kabab Restaurant',
       price: '$94',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
   ];
 
@@ -75,7 +75,7 @@ const FoodScreen = () => {
     {
       id: 1,
       name: 'Open Restaurant 1',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
       rating: '4.5',
       delivery: 'Free',
       time: '15 min',
@@ -83,7 +83,7 @@ const FoodScreen = () => {
     {
       id: 2,
       name: 'Open Restaurant 2',
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
       rating: '4.5',
       delivery: 'Free',
       time: '15 min',

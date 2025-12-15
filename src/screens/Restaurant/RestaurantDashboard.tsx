@@ -17,14 +17,15 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { colors } from '../../theme';
+import { IMAGES } from '../../constants/images';
 
 const { width } = Dimensions.get('window');
 
 // Dữ liệu giả cho món ăn phổ biến
 const POPULAR_ITEMS = [
-    { id: '1', image: require('../../assets/images/pizza1.png') }, // Thay bằng ảnh thật của bạn
-    { id: '2', image: require('../../assets/images/pizza2.png') },
-    { id: '3', image: require('../../assets/images/introman2.png') },
+    { id: '1', image: IMAGES.pizza1 }, // Thay bằng ảnh thật của bạn
+    { id: '2', image: IMAGES.pizza2 },
+    { id: '3', image: IMAGES.introman2 },
 ];
 
 export default function RestaurantDashboard() {

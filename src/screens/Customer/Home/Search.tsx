@@ -11,7 +11,8 @@ import {
   Keyboard,
   Pressable,
 } from 'react-native';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/core';
@@ -34,25 +35,25 @@ const SearchScreen = () => {
       id: '1',
       name: 'Pansi Restaurant',
       rating: 4.7,
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '2',
       name: 'American Spicy Burger Shop',
       rating: 4.3,
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '3',
       name: 'Cafeteria Coffee Club',
       rating: 4.0,
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
     {
       id: '4',
       name: 'Cafeteria Club',
       rating: 4.0,
-      image: require('../../assets/images/pizza1.png'),
+      image: IMAGES.pizza1,
     },
   ];
   return (
@@ -143,19 +144,19 @@ const SearchScreen = () => {
               id: '1',
               name: 'European Pizza',
               restaurant: 'Pansi Restaurant',
-              image: require('../../assets/images/pizza1.png'),
+              image: IMAGES.pizza1,
             },
             {
               id: '2',
               name: 'Buffalo Pizza',
               restaurant: 'Pansi Restaurant',
-              image: require('../../assets/images/pizza2.png'),
+              image: IMAGES.pizza2,
             },
             {
               id: '3',
               name: 'Buffalo Pizza',
               restaurant: 'Pansi Restaurant',
-              image: require('../../assets/images/pizza2.png'),
+              image: IMAGES.pizza2,
             },
           ]}
           keyExtractor={item => item.id}

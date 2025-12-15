@@ -15,8 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Feather from 'react-native-vector-icons/Feather'; // Icon send/smile
-import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 
 // Dữ liệu giả lập tin nhắn
 const INITIAL_MESSAGES = [
@@ -32,7 +32,7 @@ const INITIAL_MESSAGES = [
     text: 'Hay, Congratulation for order',
     time: '8:11 pm',
     isSender: false,
-    avatar: IMAGES.shipperIcon || require('../../assets/images/introman1.png'),
+    avatar: IMAGES.shipperIcon || IMAGES.introman2,
   },
   {
     id: '3',
@@ -46,7 +46,7 @@ const INITIAL_MESSAGES = [
     text: 'I’m Coming , just wait ...',
     time: '8:12 pm',
     isSender: false,
-    avatar: IMAGES.shipperIcon || require('../../assets/images/introman1.png'),
+    avatar: IMAGES.shipperIcon || IMAGES.introman1,
   },
   {
     id: '5',
@@ -97,7 +97,7 @@ export default function ChatScreen() {
             
             {/* Avatar của mình (Optional, trong ảnh mẫu có) */}
             <Image 
-                source={require('../../assets/images/introman2.png')} 
+                source={IMAGES.introman2} 
                 style={styles.avatarSmall} 
             />
           </View>

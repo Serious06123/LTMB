@@ -22,8 +22,8 @@ import {
 } from '@maplibre/maplibre-react-native';
 
 import polyline from '@mapbox/polyline'; 
-import mapService from '../../services/mapService';
-import { GOONG_CONFIG } from '../../constants/config';
+import mapService from '../../../services/mapService';
+import { GOONG_CONFIG } from '../../../constants/config';
 
 interface LocationMarker {
   key: string;

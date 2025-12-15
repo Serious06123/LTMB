@@ -9,13 +9,13 @@ import {
   Callout
 } from '@maplibre/maplibre-react-native';
 import polyline from '@mapbox/polyline';
-import mapService from '../../services/mapService';
-import { GOONG_CONFIG } from '../../constants/config';
+import mapService from '../../../services/mapService';
+import { GOONG_CONFIG } from '../../../constants/config';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Feather from 'react-native-vector-icons/Feather';
 
@@ -130,7 +130,7 @@ const TrackOrderScreen = () => {
              <View style={styles.shipperInfo}>
                 {/* Avatar Shipper */}
                 <Image 
-                    source={IMAGES.shipperIcon || require('../../assets/images/introman1.png')} 
+                    source={IMAGES.shipperIcon || IMAGES.shipperIcon} 
                     style={styles.shipperAvatar} 
                 />
                 <View>

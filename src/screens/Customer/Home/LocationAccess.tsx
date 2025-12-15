@@ -10,12 +10,12 @@ import {
   PermissionsAndroid,
   ActivityIndicator
 } from 'react-native';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import { useNavigation } from '@react-navigation/native';
-import mapService from '../../services/mapService';
-import { useDispatch } from 'react-redux';
-import { setLocation } from '../../features/general/generalSlice'; // Import action
+import mapService from '../../../services/mapService';
+
 // Import thư viện mới
 import Geolocation from 'react-native-geolocation-service';
 
@@ -109,7 +109,7 @@ const LocationAccessScreen = () => {
       {/* Map Icon */}
       <View style={styles.mapContainer}>
         <Image
-          source={require('../../assets/images/location-map.jpg')}
+          source={IMAGES.location}
           style={styles.mapImage}
         />
       </View>

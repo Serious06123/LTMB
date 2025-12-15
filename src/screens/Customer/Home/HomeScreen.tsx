@@ -11,19 +11,20 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
-import { colors } from '../../theme';
+import { colors } from '../../../theme';
+import { IMAGES } from '../../../constants/images';
 import { useNavigation, useRoute } from '@react-navigation/native'; // <--- Đã thêm useRoute
-import DiscountPopup from '../../components/DiscountPopup';
+import DiscountPopup from '../../../components/DiscountPopup';
 
 const categories = [
   {
     id: '1',
     name: 'Hot Dog',
-    image: require('../../assets/images/pizza1.png'),
+    image: IMAGES.pizza1,
   },
-  { id: '2', name: 'Burger', image: require('../../assets/images/pizza1.png') },
-  { id: '3', name: 'Pizza', image: require('../../assets/images/pizza1.png') },
-  { id: '4', name: 'Salad', image: require('../../assets/images/pizza1.png') },
+  { id: '2', name: 'Burger', image: IMAGES.pizza1 },
+  { id: '3', name: 'Pizza', image: IMAGES.pizza1 },
+  { id: '4', name: 'Salad', image: IMAGES.pizza1 },
 ];
 
 const restaurants = [
@@ -34,7 +35,7 @@ const restaurants = [
     rating: '4.7',
     delivery: 'Free',
     time: '20 min',
-    image: require('../../assets/images/pizza1.png'),
+    image: IMAGES.pizza1,
   },
   {
     id: '2',
@@ -43,7 +44,7 @@ const restaurants = [
     rating: '⭐ 4.5',
     delivery: 'Free',
     time: '15 min',
-    image: require('../../assets/images/pizza1.png'),
+    image: IMAGES.pizza1,
   },
   {
     id: '3',
@@ -52,7 +53,7 @@ const restaurants = [
     rating: '⭐ 4.5',
     delivery: 'Free',
     time: '15 min',
-    image: require('../../assets/images/pizza1.png'),
+    image: IMAGES.pizza1,
   },
 ];
 
