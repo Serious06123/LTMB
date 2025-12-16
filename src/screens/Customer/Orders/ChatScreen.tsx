@@ -72,7 +72,7 @@ export default function ChatScreen() {
   const backendRoot = GOONG_CONFIG.BASE_URL.replace(/\/api\/?$/, '');
   const tokenRaw = getToken();
   const token = tokenRaw === null ? undefined : tokenRaw;
-  const currentUser: any = Store.getState()?.generalState?.user;
+  const currentUser: any = Store.getState()?.general?.user;
   const currentUserId = currentUser?._id || currentUser?.id;
 
   useEffect(() => {

@@ -48,11 +48,6 @@ export default function AddNewItem() {
     const [price, setPrice] = useState('50');
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState('Fast Food'); // Mặc định category
-
-    // State giả lập checkbox (Có thể dùng để chọn Category sau này)
-    const [isPickup, setIsPickup] = useState(true);
-    const [isDelivery, setIsDelivery] = useState(false);
-
     // --- STATE CHO UPLOAD ẢNH ---
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [cloudinaryUrl, setCloudinaryUrl] = useState<string>('');
@@ -231,22 +226,6 @@ export default function AddNewItem() {
                         />
                     </View>
 
-                    {/* UI Checkbox giữ nguyên để trang trí hoặc dùng sau này */}
-                    <TouchableOpacity style={styles.checkboxRow} onPress={() => setIsPickup(!isPickup)}>
-                        <MaterialCommunityIcons
-                            name={isPickup ? "checkbox-marked-outline" : "checkbox-blank-outline"}
-                            size={24} color={colors.primary}
-                        />
-                        <Text style={styles.checkboxLabel}>Pick up</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.checkboxRow} onPress={() => setIsDelivery(!isDelivery)}>
-                        <MaterialCommunityIcons
-                            name={isDelivery ? "checkbox-marked-outline" : "checkbox-blank-outline"}
-                            size={24} color={isDelivery ? colors.primary : "#E3E3E3"}
-                        />
-                        <Text style={styles.checkboxLabel}>Delivery</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* DETAILS */}
@@ -329,9 +308,6 @@ const styles = StyleSheet.create({
     },
     currency: { fontSize: 16, color: '#A0A5BA', marginRight: 5 },
     priceInput: { flex: 1, fontSize: 16, color: '#181C2E' },
-    checkboxRow: { flexDirection: 'row', alignItems: 'center', marginRight: 15 },
-    checkboxLabel: { marginLeft: 5, color: '#A0A5BA', fontSize: 14 },
-
     // Details
     textArea: {
         backgroundColor: '#F6F6F6', borderRadius: 10, padding: 20,
