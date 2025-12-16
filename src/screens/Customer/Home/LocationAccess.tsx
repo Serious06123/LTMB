@@ -132,7 +132,7 @@ const LocationAccessScreen = () => {
 
       {/* Description */}
       <Text style={styles.description}>
-        DFOOD WILL ACCESS YOUR LOCATION ONLY WHILE USING THE APP
+        HKCFOOD WILL ACCESS YOUR LOCATION ONLY WHILE USING THE APP
       </Text>
     </View>
   );
