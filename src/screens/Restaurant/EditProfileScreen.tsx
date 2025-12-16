@@ -8,19 +8,22 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  ScrollView
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { gql } from '@apollo/client';
-import { useQuery , useMutation } from '@apollo/client/react';
+import { useQuery, useMutation } from '@apollo/client/react';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import axios from 'axios'; // <--- 1. Import axios
+import axios from 'axios';
 
 import { colors } from '../../theme';
-import { BASE_URL } from '../../constants/config'; 
+import { BASE_URL } from '../../constants/config';
 
+// --- Interface định nghĩa kiểu dữ liệu ---
 interface UserProfile {
   id: string;
   name: string;
@@ -30,13 +33,14 @@ interface UserProfile {
   address: {
     street: string;
     city: string;
-  };
+  } | null; // Address có thể null
 }
 
 interface UserProfileData {
   getUserProfile: UserProfile;
 }
 
+// --- GRAPHQL QUERY & MUTATION ---
 const GET_USER_PROFILE = gql`
   query GetUserProfile($id: ID!) {
     getUserProfile(id: $id) {
@@ -59,72 +63,86 @@ const UPDATE_PROFILE = gql`
       id
       name
       avatar
+      phone
+      address {
+        street
+        city
+      }
     }
   }
 `;
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
+  // Lấy userId từ Redux Store
   const userId = useSelector((state: any) => state.general.userId);
 
+  // State cho Form
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [street, setStreet] = useState('');
   const [avatar, setAvatar] = useState('');
+  
+  // State xử lý upload ảnh
   const [uploading, setUploading] = useState(false);
 
-  // Load data cũ
-  const { data } = useQuery<UserProfileData>(GET_USER_PROFILE, {
-    variables: { id: userId }
+  // 1. QUERY: Lấy dữ liệu người dùng từ DB
+  const { data, loading: loadingProfile, error, refetch } = useQuery<UserProfileData>(GET_USER_PROFILE, {
+    variables: { id: userId },
+    skip: !userId, // Không chạy query nếu chưa có userId
+    fetchPolicy: 'network-only', // Luôn lấy dữ liệu mới nhất từ server
   });
 
+  // 2. USE EFFECT: Đổ dữ liệu từ DB vào các ô Input khi data thay đổi
   useEffect(() => {
     if (data?.getUserProfile) {
       const u = data.getUserProfile;
       setName(u.name || '');
       setPhone(u.phone || '');
       setAvatar(u.avatar || '');
-      setStreet(u.address?.street || '');
+      // Kiểm tra an toàn cho address
+      if (u.address) {
+        setStreet(u.address.street || '');
+      }
     }
   }, [data]);
 
-  const [updateProfile, { loading: updating }] = useMutation(UPDATE_PROFILE);
+  // 3. MUTATION: Cập nhật thông tin
+  const [updateProfile, { loading: updating }] = useMutation(UPDATE_PROFILE, {
+    onCompleted: () => {
+       // Refetch lại để đảm bảo dữ liệu đồng bộ nếu cần
+       refetch();
+    }
+  });
 
+  // Xử lý chọn ảnh
   const handleChoosePhoto = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.7 });
-
     if (result.assets && result.assets.length > 0) {
       const file = result.assets[0];
       uploadImageToServer(file);
     }
   };
 
+  // Upload ảnh lên Cloudinary qua Server của bạn
   const uploadImageToServer = async (imageAsset: any) => {
     setUploading(true);
     const formData = new FormData();
 
     formData.append('image', {
       uri: imageAsset.uri,
-      type: imageAsset.type || 'image/jpeg', // Fallback type nếu null
+      type: imageAsset.type || 'image/jpeg',
       name: imageAsset.fileName || 'upload.jpg',
     });
 
     try {
       const url = `${BASE_URL}upload`; 
-      
-      console.log('Uploading to:', url);
-
       const res = await axios.post(url, formData, {
-        headers: { 
-            'Content-Type': 'multipart/form-data' 
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-
-      console.log('Upload Success:', res.data.imageUrl);
       
-      // Cập nhật state hiển thị ảnh ngay lập tức
-      setAvatar(res.data.imageUrl);
-
+      // Server trả về link ảnh, set vào state để hiển thị ngay
+      setAvatar(res.data.imageUrl); 
     } catch (error) {
       console.error('Upload failed:', error);
       Alert.alert('Lỗi', 'Không thể upload ảnh.');
@@ -133,14 +151,15 @@ export default function EditProfileScreen() {
     }
   };
 
+  // Lưu thông tin
   const handleSave = async () => {
     try {
       await updateProfile({
         variables: {
           name,
           phone,
-          avatar, // Link ảnh mới nhất từ Cloudinary
-          address: { street, city: "Vietnam" }
+          avatar, 
+          address: { street, city: "Vietnam" } // Mặc định city hoặc thêm ô nhập city nếu cần
         }
       });
       Alert.alert("Thành công", "Cập nhật hồ sơ thành công!");
@@ -151,43 +170,89 @@ export default function EditProfileScreen() {
     }
   };
 
-  if (updating) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  // Hiển thị Loading khi đang tải dữ liệu ban đầu hoặc đang cập nhật
+  if (loadingProfile || updating) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{marginTop: 10, color: '#666'}}>
+            {updating ? 'Đang lưu...' : 'Đang tải dữ liệu...'}
+        </Text>
+      </View>
+    );
+  }
+
+  if (error) {
+      return (
+        <View style={styles.center}>
+            <Text>Có lỗi khi tải dữ liệu. Vui lòng thử lại.</Text>
+            <TouchableOpacity onPress={() => refetch()} style={{marginTop: 10}}>
+                <Text style={{color: colors.primary}}>Thử lại</Text>
+            </TouchableOpacity>
+        </View>
+      )
+  }
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
       <ScrollView contentContainerStyle={{padding: 20}}>
-        <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
+        <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+                {/* Bạn có thể thay bằng Icon Back */}
+                <Text style={{fontSize: 24, color: '#333'}}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
+            <View style={{width: 20}} /> 
+        </View>
 
-        {/* AVATAR */}
+        {/* AVATAR SECTION */}
         <View style={styles.avatarContainer}>
           {uploading ? (
              <ActivityIndicator size="large" color={colors.primary} style={styles.avatar} />
           ) : (
              <Image 
-                source={avatar ? { uri: avatar } : require('../../assets/images/introman1.png')} 
+                // Ưu tiên hiển thị avatar từ state (vừa load từ DB hoặc vừa upload xong)
+                source={avatar ? { uri: avatar } : require('../../assets/images/pizza1.png')} 
                 style={styles.avatar} 
              />
           )}
           
           <TouchableOpacity onPress={handleChoosePhoto} style={styles.cameraBtn}>
-             <Text style={{color:'#fff', fontWeight: 'bold'}}>Sửa</Text>
+             <Text style={{color:'#fff', fontWeight: 'bold', fontSize: 12}}>Sửa ảnh</Text>
           </TouchableOpacity>
         </View>
 
-        {/* FORM */}
+        {/* FORM SECTION */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Tên hiển thị</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} />
+          <TextInput 
+            style={styles.input} 
+            value={name} 
+            onChangeText={setName} 
+            placeholder="Nhập tên của bạn"
+          />
         </View>
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Số điện thoại</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <TextInput 
+            style={styles.input} 
+            value={phone} 
+            onChangeText={setPhone} 
+            keyboardType="phone-pad" 
+            placeholder="Nhập số điện thoại"
+          />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Địa chỉ</Text>
-          <TextInput style={styles.input} value={street} onChangeText={setStreet} />
+          <Text style={styles.label}>Địa chỉ (Đường/Số nhà)</Text>
+          <TextInput 
+            style={styles.input} 
+            value={street} 
+            onChangeText={setStreet} 
+            placeholder="Nhập địa chỉ"
+          />
         </View>
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
@@ -195,6 +260,7 @@ export default function EditProfileScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -202,32 +268,46 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#333' },
-  avatarContainer: { alignItems: 'center', marginBottom: 30 },
-  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#eee', borderWidth: 1, borderColor: '#ddd' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20},
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  avatarContainer: { alignItems: 'center', marginBottom: 30, position: 'relative' },
+  avatar: { width: 110, height: 110, borderRadius: 55, backgroundColor: '#f0f0f0', borderWidth: 2, borderColor: '#fff' },
   cameraBtn: {
     position: 'absolute',
     bottom: 0,
     backgroundColor: colors.primary,
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   formGroup: { marginBottom: 20 },
-  label: { fontSize: 14, color: '#999', marginBottom: 5 },
+  label: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
   input: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    paddingVertical: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     fontSize: 16,
-    color: '#333'
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#eee'
   },
   saveBtn: {
     backgroundColor: colors.primary,
-    padding: 15,
+    padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20
+    marginTop: 10,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5
   },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

@@ -67,18 +67,6 @@ const GET_CATEGORIES = gql`
     }
   }
 `;
-// // 2. Danh sách danh mục mới của bạn
-// const CATEGORIES = [
-//   'All',
-//   'Cơm',
-//   'Bún-Phở-Cháo',
-//   'Trà sữa',
-//   'Cà phê-Trà-Sinh tố',
-//   'Đồ ăn nhẹ',
-//   'Fast Food',
-//   'Ăn vặt',
-//   'Món chay',
-// ];
 
 export default function MyFoodList() {
   const navigation = useNavigation();

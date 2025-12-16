@@ -151,6 +151,7 @@ export default function LoginScreen() {
           
           dispatch(setToken(token));
           // Nếu có action setUserId thì dùng: dispatch(setUserId(user.id));
+          dispatch(setUserId(user.id));
           if ( user.role == 'customer' ){
             navigation.navigate('CustomerTabs' as never); 
           }
