@@ -16,45 +16,58 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// --- IMPORTS MỚI ---
+// --- IMPORTS CHO UPLOAD VÀ GRAPHQL ---
 import { launchImageLibrary } from 'react-native-image-picker';
 import axios from 'axios';
+import { gql } from '@apollo/client'; // Import Apollo Client
+import { useMutation } from '@apollo/client/react';
 import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
-import { GOONG_CONFIG } from '../../constants/config';
-// Dữ liệu giả cho Ingredients (Giữ nguyên)
-const INGREDIENTS_BASIC = [
-  { id: '1', name: 'Salt', icon: 'shaker-outline' },
-  { id: '2', name: 'Chicken', icon: 'food-drumstick-outline' },
-  { id: '3', name: 'Onion', icon: 'seed-outline' },
-  { id: '4', name: 'Garlic', icon: 'leaf' },
-  { id: '5', name: 'Peppers', icon: 'chili-mild' },
-  { id: '6', name: 'Ginger', icon: 'food-variant' },
-];
+import { BASE_URL } from '../../constants/config'; 
 
-const INGREDIENTS_FRUIT = [
-  { id: '1', name: 'Avocado', icon: 'food-apple-outline' },
-  { id: '2', name: 'Apple', icon: 'food-apple-outline' },
-  { id: '3', name: 'Blueberry', icon: 'fruit-grapes-outline' },
-  { id: '4', name: 'Broccoli', icon: 'tree' },
-  { id: '5', name: 'Orange', icon: 'fruit-citrus' },
-  { id: '6', name: 'Walnut', icon: 'peanut-outline' },
-];
+// --- 1. ĐỊNH NGHĨA MUTATION (Đã bỏ ingredients) ---
+const CREATE_FOOD_MUTATION = gql`
+  mutation CreateFood($name: String!, $price: Float!, $description: String, $image: String, $category: String!) {
+    createFood(
+      name: $name
+      price: $price
+      description: $description
+      image: $image
+      category: $category
+    ) {
+      id
+      name
+    }
+  }
+`;
 
 export default function AddNewItem() {
   const navigation = useNavigation();
   
   // Form State
-  const [itemName, setItemName] = useState('Mazalichiken Halim');
+  const [itemName, setItemName] = useState('Hủ tiếu');
   const [price, setPrice] = useState('50');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Fast Food'); // Mặc định category
+  
+  // State giả lập checkbox (Có thể dùng để chọn Category sau này)
   const [isPickup, setIsPickup] = useState(true);
   const [isDelivery, setIsDelivery] = useState(false);
 
   // --- STATE CHO UPLOAD ẢNH ---
-  const [imageUri, setImageUri] = useState<string | null>(null); // Ảnh hiển thị trên UI
-  const [cloudinaryUrl, setCloudinaryUrl] = useState<string>(''); // Link ảnh thật để lưu vào DB
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [cloudinaryUrl, setCloudinaryUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+
+  // --- HOOK GRAPHQL ---
+  const [createFood, { loading: saving }] = useMutation(CREATE_FOOD_MUTATION, {
+    onCompleted: (data: any) => {
+      Alert.alert("Thành công", `Đã thêm món: ${data.createFood.name}`);
+      navigation.goBack(); // Quay lại màn hình trước
+    },
+    onError: (error) => {
+      Alert.alert("Lỗi", error.message);
+    }
+  });
 
   // 1. Hàm chọn ảnh
   const pickImage = () => {
@@ -66,8 +79,8 @@ export default function AddNewItem() {
       }
       if (response.assets && response.assets.length > 0) {
         const asset = response.assets[0];
-        setImageUri(asset.uri || null); // Hiển thị tạm thời
-        uploadToCloudinary(asset); // Gọi hàm upload ngay khi chọn xong
+        setImageUri(asset.uri || null);
+        uploadToCloudinary(asset);
       }
     });
   };
@@ -84,60 +97,56 @@ export default function AddNewItem() {
     });
 
     try {
-      // Gọi về Backend: BASE_URL + 'upload' (Vì BASE_URL là .../api/)
-      const res = await axios.post(`${GOONG_CONFIG.BASE_URL}upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const res = await axios.post(`${BASE_URL}upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-
       console.log('Upload Success:', res.data.imageUrl);
-      setCloudinaryUrl(res.data.imageUrl); // Lưu link ảnh từ Cloudinary trả về
+      setCloudinaryUrl(res.data.imageUrl); 
     } catch (error) {
       console.error('Upload failed:', error);
-      Alert.alert('Error', 'Failed to upload image to server.');
-      setImageUri(null); // Reset ảnh nếu lỗi
+      Alert.alert('Error', 'Không thể upload ảnh.');
+      setImageUri(null);
     } finally {
       setUploading(false);
     }
   };
 
-  // 3. Hàm Save (Kết nối với API tạo món ăn sau này)
+  // 3. Hàm Save - Gọi GraphQL
   const handleSave = () => {
-    if(!cloudinaryUrl && !imageUri) {
+    if (!itemName || !price) {
+        Alert.alert("Thiếu thông tin", "Vui lòng nhập tên và giá món ăn");
+        return;
+    }
+    if (!cloudinaryUrl && !imageUri) {
         Alert.alert("Lưu ý", "Vui lòng chọn ảnh món ăn");
         return;
     }
-    if(uploading) {
+    if (uploading) {
         Alert.alert("Đang tải", "Vui lòng đợi ảnh tải lên hoàn tất");
         return;
     }
 
-    console.log("Saving Item:", {
-        name: itemName,
-        price,
-        description,
-        image: cloudinaryUrl, // Gửi link này xuống DB
-        pickup: isPickup,
-        delivery: isDelivery
-    });
-    
-    Alert.alert("Success", "Ready to save to Database!");
-    // Tại đây bạn sẽ gọi GraphQL Mutation để tạo món ăn
-  };
+    // Chuyển đổi giá sang số thực (Float)
+    const priceFloat = parseFloat(price);
+    if (isNaN(priceFloat)) {
+        Alert.alert("Lỗi", "Giá tiền không hợp lệ");
+        return;
+    }
 
-  const renderIngredient = (item: any) => (
-    <TouchableOpacity key={item.id} style={styles.ingItem}>
-      <View style={styles.ingIconCircle}>
-        <MaterialCommunityIcons name={item.icon} size={24} color={colors.primary} />
-      </View>
-      <Text style={styles.ingText}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+    // Gọi Mutation
+    createFood({
+        variables: {
+            name: itemName,
+            price: priceFloat,
+            description: description,
+            image: cloudinaryUrl, // Link ảnh từ Cloudinary
+            category: category // Gửi category (ví dụ: 'Fast Food')
+        }
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -162,18 +171,24 @@ export default function AddNewItem() {
             placeholder="Enter item name"
         />
 
+        {/* CATEGORY (Ví dụ nhập tay, bạn có thể thay bằng Dropdown sau này) */}
+        <Text style={styles.label}>CATEGORY</Text>
+        <TextInput 
+            style={styles.input} 
+            value={category} 
+            onChangeText={setCategory}
+            placeholder="e.g. Burger, Pizza, Drink"
+        />
+
         {/* UPLOAD PHOTO LOGIC */}
-        <Text style={styles.label}>UPLOAD PHOTO/VIDEO</Text>
+        <Text style={styles.label}>UPLOAD PHOTO</Text>
         <View style={styles.uploadRow}>
-            
-            {/* Nếu ĐANG upload -> Hiện Loading */}
             {uploading ? (
                  <View style={[styles.uploadItem, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F6F6' }]}>
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={{fontSize: 10, marginTop: 5}}>Uploading...</Text>
                  </View>
             ) : imageUri ? (
-                // Nếu ĐÃ chọn ảnh -> Hiện ảnh
                 <View style={styles.uploadItem}>
                     <Image source={{ uri: imageUri }} style={styles.uploadedImage} />
                     <TouchableOpacity 
@@ -184,31 +199,12 @@ export default function AddNewItem() {
                     </TouchableOpacity>
                 </View>
             ) : (
-                // Nếu CHƯA chọn -> Hiện nút Add để bấm vào
                 <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                     <View style={styles.cloudIcon}>
                         <Feather name="upload-cloud" size={24} color={colors.primary} />
                     </View>
                     <Text style={styles.uploadText}>Add Photo</Text>
                 </TouchableOpacity>
-            )}
-
-            {/* Các ô Upload phụ (để trang trí hoặc thêm nhiều ảnh sau này) */}
-            {!imageUri && (
-                <View style={[styles.uploadBox, { opacity: 0.5 }]}>
-                    <View style={styles.cloudIcon}>
-                        <Feather name="upload-cloud" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={styles.uploadText}>Add</Text>
-                </View>
-            )}
-             {!imageUri && (
-                <View style={[styles.uploadBox, { opacity: 0.5 }]}>
-                    <View style={styles.cloudIcon}>
-                        <Feather name="upload-cloud" size={24} color={colors.primary} />
-                    </View>
-                    <Text style={styles.uploadText}>Add</Text>
-                </View>
             )}
         </View>
 
@@ -224,7 +220,8 @@ export default function AddNewItem() {
                     keyboardType="numeric"
                 />
             </View>
-
+            
+            {/* UI Checkbox giữ nguyên để trang trí hoặc dùng sau này */}
             <TouchableOpacity style={styles.checkboxRow} onPress={() => setIsPickup(!isPickup)}>
                 <MaterialCommunityIcons 
                     name={isPickup ? "checkbox-marked-outline" : "checkbox-blank-outline"} 
@@ -242,38 +239,28 @@ export default function AddNewItem() {
             </TouchableOpacity>
         </View>
 
-        {/* INGREDIENTS */}
-        <Text style={styles.sectionTitle}>INGREDIENTS</Text>
-        <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>Basic</Text>
-            <Text style={styles.seeAll}>See All ▼</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
-            {INGREDIENTS_BASIC.map(renderIngredient)}
-        </ScrollView>
-
-        <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>Fruit</Text>
-            <Text style={styles.seeAll}>See All ▼</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
-            {INGREDIENTS_FRUIT.map(renderIngredient)}
-        </ScrollView>
-
         {/* DETAILS */}
         <Text style={styles.label}>DETAILS</Text>
         <TextInput 
             style={styles.textArea} 
             value={description}
             onChangeText={setDescription}
-            placeholder="Lorem ipsum dolor sit amet..."
+            placeholder="Description about the food..."
             multiline
             numberOfLines={4}
         />
 
         {/* SAVE BUTTON */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>SAVE CHANGES</Text>
+        <TouchableOpacity 
+            style={[styles.saveButton, saving && { opacity: 0.7 }]} 
+            onPress={handleSave}
+            disabled={saving}
+        >
+            {saving ? (
+                <ActivityIndicator color="#fff" />
+            ) : (
+                <Text style={styles.saveButtonText}>SAVE CHANGES</Text>
+            )}
         </TouchableOpacity>
 
         <View style={{height: 40}} />
@@ -335,27 +322,14 @@ const styles = StyleSheet.create({
   checkboxRow: { flexDirection: 'row', alignItems: 'center', marginRight: 15 },
   checkboxLabel: { marginLeft: 5, color: '#A0A5BA', fontSize: 14 },
 
-  // Ingredients & Details
-  sectionTitle: {
-      fontSize: 13, fontWeight: 'bold', color: '#32343E', marginTop: 25, marginBottom: 5, textTransform: 'uppercase'
-  },
-  groupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
-  groupTitle: { fontSize: 16, fontWeight: '600', color: '#32343E' },
-  seeAll: { fontSize: 12, color: '#A0A5BA' },
-  scrollRow: { marginBottom: 5 },
-  ingItem: { alignItems: 'center', marginRight: 15 },
-  ingIconCircle: {
-      width: 50, height: 50, borderRadius: 25, backgroundColor: '#FFF2E5',
-      alignItems: 'center', justifyContent: 'center', marginBottom: 8,
-  },
-  ingText: { fontSize: 12, color: '#A0A5BA' },
+  // Details
   textArea: {
       backgroundColor: '#F6F6F6', borderRadius: 10, padding: 20,
       height: 120, textAlignVertical: 'top', color: '#181C2E', fontSize: 14,
   },
   saveButton: {
       backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 18,
-      alignItems: 'center', marginTop: 10, marginBottom: 20,
+      alignItems: 'center', marginTop: 30, marginBottom: 20,
   },
   saveButtonText: {
       color: '#fff', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1,

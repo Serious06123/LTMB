@@ -1,18 +1,42 @@
-// Trong file: src/app/apolloClient.js (File mới)
-
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
+import { SetContextLink } from '@apollo/client/link/context'; 
+import { BASE_URL } from '../constants/config'; 
 
-// Cấu hình đường dẫn đến server GraphQL backend của bạn
+// --- SỬA LỖI 1: Import đúng tên { Store } (chữ S hoa) từ file store.js ---
+import { Store } from './store'; 
+
+// 1. Cấu hình HttpLink
 const httpLink = new HttpLink({
-  // Dùng 10.0.2.2 thay cho localhost khi dùng máy ảo Android
-  uri: 'http://10.0.2.2:4000/graphql',
+  uri: BASE_URL.replace('/api/', '/graphql'),
 });
 
-// Khởi tạo client
+// 2. Cấu hình Auth Link (Middleware)
+// --- SỬA LỖI 2: Đổi tham số thành ({ headers }) vì context giờ là tham số đầu tiên ---
+const authLink = new SetContextLink(({ headers }) => { // (context, operation) -> Lấy headers từ context
+  
+  // Lấy state từ Redux Store (Dùng biến Store đã import đúng)
+  const state = Store.getState();
+  
+  // Lấy token (kiểm tra cả 2 trường hợp tên slice cho chắc chắn)
+  const token = state.general?.token || state.generalState?.token;
+
+  console.log("Token sent to GraphQL:", token);
+
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : "",
+    }
+  };
+});
+
+// 3. Khởi tạo Client
 const client = new ApolloClient({
-  link: httpLink,
+  link: authLink.concat(httpLink),
   cache: new InMemoryCache(),
+  devtools: {
+    enabled: true 
+  },
 });
 
-// Export client để App.js và authService.js có thể import
 export default client;

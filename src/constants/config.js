@@ -6,4 +6,4 @@ export const GOONG_CONFIG = {
   BASE_URL: 'http://10.0.2.2:4000/api/' 
 };
 
-export const BASE_URL = GOONG_CONFIG.BASE_URL;
+export const BASE_URL = 'http://10.0.2.2:4000/api/';
