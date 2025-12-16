@@ -14,6 +14,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
 import { useNavigation, useRoute } from '@react-navigation/native'; // <--- Đã thêm useRoute
+import { useSelector } from 'react-redux';
 import DiscountPopup from '../../../components/DiscountPopup';
 
 const categories = [
@@ -61,10 +62,11 @@ export default function HomeScreen() {
   
   const [showDiscount, setShowDiscount] = useState(false);
   const navigation = useNavigation<any>();
+  const currentLocation = useSelector((state: any) => state.general.currentLocation);
+  const displayAddress = currentLocation?.address || 'Đang tải vị trí...';
   
   // <--- Code mới thêm
   const route = useRoute();
-  const { address } = (route.params || {}) as { address?: string };
   // ------------------
 
   const goToCart = () => {
@@ -97,7 +99,7 @@ export default function HomeScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {/* <--- Code mới sửa: Hiển thị địa chỉ động */}
                 <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
-                    {address || 'Current Location'}
+                    {displayAddress || 'Current Location'}
                 </Text>
 
                 <AntDesign

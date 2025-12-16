@@ -15,12 +15,14 @@ import { IMAGES } from '../../../constants/images';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import { useNavigation } from '@react-navigation/native';
 import mapService from '../../../services/mapService';
-
+import { useDispatch } from 'react-redux';
+import { setLocation } from '../../../features/general/generalSlice';
 // Import thư viện mới
 import Geolocation from 'react-native-geolocation-service';
 
 const LocationAccessScreen = () => {
   const navigation = useNavigation<any>();
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
   // Hàm xin quyền truy cập vị trí
   const requestLocationPermission = async () => {
@@ -74,16 +76,12 @@ const LocationAccessScreen = () => {
 
           if (data && data.results && data.results.length > 0) {
             const currentAddress = data.results[0].formatted_address;
-            console.log("🏡 Address:", currentAddress);
-
-            // 4. Chuyển màn hình với dữ liệu
-            navigation.navigate('CustomerTabs', {
-              screen: 'HomeTab', // <--- Phải chỉ rõ tên màn hình con bên trong Tab
-              params: {       // <--- Dữ liệu phải bọc trong object params này
+            dispatch(setLocation({
                 address: currentAddress,
                 coords: { latitude, longitude }
-              }
-            });
+            }));
+            // 4. Chuyển màn hình với dữ liệu
+            navigation.navigate('Login');
           } else {
             Alert.alert('Error', 'Could not find address from these coordinates.');
           }
