@@ -36,7 +36,7 @@ export default function Navigators() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="LocationAccess"
+        initialRouteName="ChatScreen"
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Intro" component={IntroScreen} />
