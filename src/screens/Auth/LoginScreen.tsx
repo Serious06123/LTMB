@@ -151,8 +151,15 @@ export default function LoginScreen() {
           
           dispatch(setToken(token));
           // Nếu có action setUserId thì dùng: dispatch(setUserId(user.id));
-
-          navigation.navigate('CustomerTabs' as never); 
+          if ( user.role == 'customer' ){
+            navigation.navigate('CustomerTabs' as never); 
+          }
+          else if ( user.role == 'restaurant' ){
+            navigation.navigate('RestaurantTabs' as never); 
+          }
+          else if ( user.role == 'shipper' ){
+            navigation.navigate('ShipperTabs' as never);
+          }
         } catch (e) {
           console.error('Lỗi lưu storage:', e);
         }
