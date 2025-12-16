@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,38 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import AntDesign from 'react-native-vector-icons/AntDesign';
 import Entypo from 'react-native-vector-icons/Entypo';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../theme';
-import { IMAGES } from '../../constants/images';
-import { gql } from '@apollo/client'; // Import Apollo
+import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
 
-const GET_FOODS = gql`
-  query GetFoods($category: String) {
-    getFoods(category: $category) {
+// Food item type
+interface Food {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  rating: number;
+  reviews: number;
+  category: string;
+  isAvailable: boolean;
+  description: string;
+}
+
+// Query response type
+interface MyFoodsResponse {
+  myFoods: Food[];
+}
+
+// 1. Định nghĩa Query lấy món ăn của chính nhà hàng
+const GET_MY_FOODS = gql`
+  query MyFoods($category: String) {
+    myFoods(category: $category) {
       id
       name
       price
@@ -31,139 +47,171 @@ const GET_FOODS = gql`
       rating
       reviews
       category
-      status
+      isAvailable
+      description
     }
   }
 `;
-// Dữ liệu giả lập
-const FOOD_DATA = [
-  {
-    id: '1',
-    name: 'Chicken Thai Biriyani',
-    category: 'Breakfast',
-    rating: 4.9,
-    reviews: 10,
-    price: 60,
-    status: 'Pick UP',
-    image: IMAGES.pizza1, // Thay bằng ảnh thật
-  },
-  {
-    id: '2',
-    name: 'Chicken Bhuna',
-    category: 'Breakfast',
-    rating: 4.9,
-    reviews: 10,
-    price: 30,
-    status: 'Pick UP',
-    image: IMAGES.pizza2,
-  },
-  {
-    id: '3',
-    name: 'Mazalichiken Halim',
-    category: 'Breakfast',
-    rating: 4.9,
-    reviews: 10,
-    price: 25,
-    status: 'Pick UP',
-    image: IMAGES.burger1,
-  },
-  {
-    id: '4',
-    name: 'Special Lunch Set',
-    category: 'Lunch',
-    rating: 4.5,
-    reviews: 24,
-    price: 45,
-    status: 'Delivery',
-    image: IMAGES.pizza1,
-  },
-];
 
-const CATEGORIES = ['All', 'Breakfast', 'Lunch', 'Dinner'];
+// 2. Danh sách danh mục mới của bạn
+const CATEGORIES = [
+  'All',
+  'Cơm',
+  'Bún-Phở-Cháo',
+  'Trà sữa',
+  'Cà phê-Trà-Sinh tố',
+  'Đồ ăn nhẹ',
+  'Fast Food',
+  'Ăn vặt',
+  'Món chay',
+];
 
 export default function MyFoodList() {
   const navigation = useNavigation();
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Logic lọc dữ liệu
-  const filteredData = selectedCategory === 'All' 
-    ? FOOD_DATA 
-    : FOOD_DATA.filter(item => item.category === selectedCategory);
+  // 3. Gọi Apollo Hook
+  const { data, loading, error, refetch } = useQuery<MyFoodsResponse>(GET_MY_FOODS, {
+    variables: { category: selectedCategory },
+    fetchPolicy: 'network-only', // Luôn lấy dữ liệu mới nhất từ server
+  });
 
-  const renderItem = ({ item }: { item: typeof FOOD_DATA[0] }) => (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={() => (navigation as any).navigate('FoodDetailRestaurant', { item })}
-    >
-      {/* 1. Ảnh bên trái */}
-      <Image source={item.image} style={styles.image} />
-      
-      {/* 2. Thông tin ở giữa (Thêm paddingRight để không đè lên nút Menu/Giá) */}
-      <View style={styles.infoContainer}>
-        <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-        
-        <View style={styles.tagContainer}>
+  // Xử lý làm mới danh sách khi kéo xuống
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
+  // Render từng món ăn
+  const renderItem = ({ item }: { item: any }) => {
+    // Xử lý ảnh: Nếu có link ảnh thì dùng uri, không thì dùng ảnh placeholder
+    const imageSource = item.image 
+      ? { uri: item.image } 
+      : require('../../assets/images/pizza1.png'); // Đảm bảo bạn có ảnh default này hoặc đổi đường dẫn
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => (navigation as any).navigate('FoodDetailRestaurant', { item })}
+      >
+        {/* 1. Ảnh bên trái */}
+        <Image source={imageSource} style={styles.image} />
+
+        {/* 2. Thông tin ở giữa */}
+        <View style={styles.infoContainer}>
+          <Text style={styles.itemName} numberOfLines={2}>
+            {item.name}
+          </Text>
+
+          <View style={styles.tagContainer}>
             <Text style={styles.tagText}>{item.category}</Text>
-        </View>
+          </View>
 
-        <View style={styles.ratingRow}>
+          <View style={styles.ratingRow}>
             <FontAwesome name="star" size={14} color={colors.primary} />
-            <Text style={styles.ratingText}>{item.rating}</Text>
-            <Text style={styles.reviewText}>({item.reviews} Review)</Text>
+            <Text style={styles.ratingText}>{item.rating || 5.0}</Text>
+            <Text style={styles.reviewText}>
+              ({item.reviews || 0} Review)
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {/* 3. Nút MENU (...) - Dùng Absolute để ghim góc trên phải */}
-      <TouchableOpacity style={styles.menuBtnAbsolute}>
+        {/* 3. Nút MENU (...) */}
+        <TouchableOpacity style={styles.menuBtnAbsolute}>
           <Entypo name="dots-three-horizontal" size={20} color="#333" />
-      </TouchableOpacity>
+        </TouchableOpacity>
 
-      {/* 4. Cụm GIÁ TIỀN & STATUS - Dùng Absolute để ghim góc dưới phải */}
-      <View style={styles.priceGroupAbsolute}>
-        <Text style={styles.priceText}>${item.price}</Text>
-        <Text style={styles.statusText}>{item.status}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+        {/* 4. Giá tiền & Trạng thái */}
+        <View style={styles.priceGroupAbsolute}>
+          <Text style={styles.priceText}>${item.price}</Text>
+          <Text style={[
+            styles.statusText, 
+            { color: item.isAvailable ? 'green' : 'red' }
+          ]}>
+            {item.isAvailable ? 'Đang bán' : 'Hết hàng'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Food List</Text>
-        <View style={{ width: 45 }} />
+        <Text style={styles.headerTitle}>Danh Sách Món Ăn</Text>
+        <TouchableOpacity onPress={() => refetch()}>
+            <Entypo name="cw" size={20} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* CATEGORY TABS */}
       <View style={styles.tabsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-            {CATEGORIES.map((cat, index) => (
-            <TouchableOpacity 
-                key={index} 
-                style={[styles.tabItem, selectedCategory === cat && styles.activeTabItem]}
-                onPress={() => setSelectedCategory(cat)}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContainer}
+        >
+          {CATEGORIES.map((cat, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.tabItem,
+                selectedCategory === cat && styles.activeTabItem,
+              ]}
+              onPress={() => setSelectedCategory(cat)}
             >
-                <Text style={[styles.tabText, selectedCategory === cat && styles.activeTabText]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedCategory === cat && styles.activeTabText,
+                ]}
+              >
                 {cat}
-                </Text>
+              </Text>
             </TouchableOpacity>
-            ))}
+          ))}
         </ScrollView>
       </View>
 
-      {/* ITEM COUNT */}
-      <Text style={styles.itemCount}>Total {filteredData.length} items</Text>
+      {/* ITEM COUNT & LOADING STATE */}
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <Text style={{ color: 'red' }}>Lỗi: {error.message}</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{marginTop: 10}}>
+             <Text style={{color: colors.primary}}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.itemCount}>
+            Tổng cộng {data?.myFoods?.length || 0} món
+          </Text>
 
-      {/* LIST */}
-      <FlatList
-        data={filteredData}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-
-       
+          {/* LIST */}
+          <FlatList
+            data={data?.myFoods || []}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Chưa có món ăn nào trong danh mục này.</Text>
+              </View>
+            }
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -171,7 +219,12 @@ export default function MyFoodList() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff', // Hoặc '#F8F9FE' nếu muốn nền hơi xám
+    backgroundColor: '#fff',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Header
   header: {
@@ -181,30 +234,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
-  backButton: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: '#ECF0F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600', // Semi-bold
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#181C2E',
   },
   // Tabs
   tabsWrapper: {
-      paddingBottom: 10,
+    paddingBottom: 10,
   },
   tabsContainer: {
     paddingHorizontal: 20,
     alignItems: 'center',
   },
   tabItem: {
-    marginRight: 30,
+    marginRight: 20,
     paddingVertical: 10,
+    paddingHorizontal: 5,
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
@@ -212,7 +258,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primary,
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#A0A5BA',
     fontWeight: '500',
   },
@@ -222,15 +268,15 @@ const styles = StyleSheet.create({
   },
   // Count
   itemCount: {
-      paddingHorizontal: 20,
-      fontSize: 14,
-      color: '#A0A5BA',
-      marginBottom: 15,
+    paddingHorizontal: 20,
+    fontSize: 14,
+    color: '#A0A5BA',
+    marginBottom: 15,
   },
   // List & Card
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100, // Tránh bottom bar
+    paddingBottom: 100,
   },
   card: {
     flexDirection: 'row',
@@ -239,27 +285,28 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 20,
     alignItems: 'center',
-    position: 'relative', // QUAN TRỌNG: Để làm mốc cho absolute
-    
+    position: 'relative',
     // Shadow
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f0f0f0'
   },
   image: {
     width: 90,
     height: 90,
     borderRadius: 16,
     marginRight: 15,
+    backgroundColor: '#eee', // Màu nền khi chưa load ảnh
   },
   infoContainer: {
     flex: 1,
-    // Padding bên phải khoảng 60-70px để chữ không bị đè lên giá tiền/menu
-    paddingRight: 70, 
+    paddingRight: 70,
     justifyContent: 'center',
-    minHeight: 90, // Đảm bảo chiều cao tối thiểu bằng ảnh
+    minHeight: 90,
   },
   itemName: {
     fontSize: 16,
@@ -275,31 +322,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     marginBottom: 8,
-  },
-  // ... (giữ nguyên style tagText, ratingRow, ratingText, reviewText)
-
-  // --- STYLE MỚI CHO CÁC PHẦN TỬ "TRONG GÓC" ---
-  menuBtnAbsolute: {
-    position: 'absolute',
-    top: 15, // Cách mép trên
-    right: 15, // Cách mép phải
-    zIndex: 1,
-  },
-  priceGroupAbsolute: {
-    position: 'absolute',
-    bottom: 15, // Cách mép dưới
-    right: 15, // Cách mép phải
-    alignItems: 'flex-end', // Căn lề phải cho giá và status
-  },
-  priceText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#181C2E',
-    marginBottom: 2,
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#A0A5BA',
   },
   tagText: {
     color: colors.primary,
@@ -321,20 +343,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#A0A5BA',
   },
-  // Price Column
-  priceColumn: {
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-      height: 50, // Căn chỉnh khoảng cách dọc
-      marginLeft: 5,
+  // Absolute items
+  menuBtnAbsolute: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    zIndex: 1,
+    padding: 5,
   },
-  // Bottom Bar (Copy lại style từ các màn hình trước)
- 
-  tabIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  fabWrapper: {
-    top: -25,
-    backgroundColor: '#fff',
-    borderRadius: 50,
-    padding: 6,
+  priceGroupAbsolute: {
+    position: 'absolute',
+    bottom: 15,
+    right: 15,
+    alignItems: 'flex-end',
   },
+  priceText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#181C2E',
+    marginBottom: 2,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+      alignItems: 'center',
+      marginTop: 50,
+  },
+  emptyText: {
+      color: '#A0A5BA',
+      fontSize: 16
+  }
 });
