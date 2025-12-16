@@ -1,30 +1,59 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, Alert } from 'react-native';
-import { colors } from '../../theme'; //
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
+import { colors } from '../../theme';
+import { useQuery } from '@apollo/client/react';
+import { gql } from '@apollo/client';
 
-const mockOrders = [
-  { id: '1', restaurant: 'Pizza Hut', address: '123 Đường A, Quận 1', price: '50.000đ', distance: '2.5km' },
-  { id: '2', restaurant: 'Gà Rán KFC', address: '456 Đường B, Quận 3', price: '75.000đ', distance: '1.2km' },
-];
+const GET_RUNNING_ORDERS = gql`
+  query GetRunningOrders {
+    getRunningOrders {
+      id
+      restaurantUser{
+        name
+        address { street city }
+      }
+      restaurantFood { name }     
+      totalAmount
+      status
+    }
+  }
+`;
 
 export default function ShipperHomeScreen({ navigation }: any) {
   const [isOnline, setIsOnline] = useState(false);
-
   const toggleSwitch = () => setIsOnline(previousState => !previousState);
 
+  const { data, loading, error, refetch } = useQuery(GET_RUNNING_ORDERS, {
+    fetchPolicy: 'network-only',
+    skip: !isOnline,
+  });
+
   const handleAcceptOrder = (item: any) => {
-    // Chuyển sang màn hình Map để đi giao hàng
     navigation.navigate('MapScreen', { orderId: item.id, isShipperMode: true });
   };
+
+  const orders = (data && Array.isArray((data as any).getRunningOrders))
+    ? (data as any).getRunningOrders.map((order: any) => ({
+        id: order.id,
+        restaurant: order.restaurantUser?.name || '',
+        foodName: order.restaurantFood?.name || '',
+        address: order.restaurantUser?.address ? `${order.restaurantUser.address.street}, ${order.restaurantUser.address.city}` : '',
+        price: order.totalAmount ? `${order.totalAmount.toLocaleString('vi-VN')}đ` : '',
+        status: order.status,
+      }))
+    : [];
 
   const renderItem = ({ item }: any) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.restaurantName}>{item.restaurant}</Text>
-        <Text style={styles.price}>{item.price}</Text>
+        <Text style={styles.restaurantName} numberOfLines={2}>{item.restaurant}</Text>
       </View>
-      <Text style={styles.address}>📍 {item.address}</Text>
-      <Text style={styles.distance}>Khoảng cách: {item.distance}</Text>
+      <Text style={styles.foodName}>Món ăn: {item.foodName}</Text>
+      <Text style={styles.price}>Giá tiền: {item.price}</Text>
+      <View style={styles.addressRow}>
+        <Text style={styles.addressIcon}>📍</Text>
+        <Text style={styles.address}>{item.address}</Text>
+      </View>
       <TouchableOpacity 
         style={styles.button} 
         onPress={() => handleAcceptOrder(item)}
@@ -37,24 +66,37 @@ export default function ShipperHomeScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       {/* Header trạng thái */}
-      <View style={[styles.statusHeader, { backgroundColor: isOnline ? colors.primary : colors.gray }]}>
+      <View style={[styles.statusHeader, { backgroundColor: isOnline ? colors.primary : colors.gray }]}> 
         <Text style={styles.statusText}>{isOnline ? 'BẠN ĐANG ONLINE' : 'BẠN ĐANG OFFLINE'}</Text>
         <Switch
           trackColor={{ false: '#767577', true: '#81b0ff' }}
           thumbColor={isOnline ? colors.white : '#f4f3f4'}
-          onValueChange={toggleSwitch}
+          onValueChange={() => {
+            toggleSwitch();
+            if (!isOnline) refetch();
+          }}
           value={isOnline}
         />
       </View>
 
       {/* Danh sách đơn hàng */}
       {isOnline ? (
-        <FlatList
-          data={mockOrders}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-        />
+        loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : error ? (
+          <View style={styles.offlineContainer}>
+            <Text style={styles.offlineText}>Lỗi tải dữ liệu</Text>
+            <Text style={[styles.offlineText, { color: 'red', marginTop: 8, fontSize: 13 }]}>{error.message}</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={orders}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<Text style={styles.offlineText}>Không có đơn hàng nào</Text>}
+          />
+        )
       ) : (
         <View style={styles.offlineContainer}>
           <Text style={styles.offlineText}>Vui lòng bật trạng thái Online để nhận đơn</Text>
@@ -83,12 +125,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  restaurantName: { fontSize: 18, fontWeight: 'bold', color: colors.black },
-  price: { fontSize: 16, color: colors.primary, fontWeight: 'bold' },
-  address: { color: colors.gray, marginBottom: 5 },
+  restaurantName: { fontSize: 18, fontWeight: 'bold', color: colors.black, flex: 1, flexWrap: 'wrap' },
+  price: { fontSize: 16, color: colors.primary, fontWeight: 'bold', marginBottom: 4 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  addressIcon: { fontSize: 14, marginRight: 2 },
+  address: { color: colors.gray, fontSize: 14 },
   distance: { color: colors.secondary, marginBottom: 10 },
   button: { backgroundColor: colors.primary, padding: 12, borderRadius: 8, alignItems: 'center' },
   buttonText: { color: colors.white, fontWeight: 'bold' },
   offlineContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   offlineText: { color: colors.gray, fontSize: 16 },
+  foodName: { fontSize: 15, color: colors.black, marginBottom: 2, fontWeight: 'semibold'},
 });
