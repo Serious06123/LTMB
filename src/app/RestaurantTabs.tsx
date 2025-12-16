@@ -131,7 +131,7 @@ export default function RestaurantTabs() {
       {/* Tab 5: Profile */}
       <Tab.Screen 
         name="ProfileTab" 
-        component={ProfileScreen} // Tạm thời trỏ về Dashboard nếu chưa có trang Profile
+        component={ProfileScreen} 
         options={{
           tabBarIcon: ({ focused }) => (
             <Feather name="user" size={24} color={focused ? colors.primary : '#ccc'} />

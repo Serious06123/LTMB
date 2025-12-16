@@ -35,7 +35,14 @@ interface Food {
 interface MyFoodsResponse {
   myFoods: Food[];
 }
+interface CategoryItem {
+  id: string;
+  name: string;
+}
 
+interface CategoryData {
+  getCategories: CategoryItem[];
+}
 // 1. Định nghĩa Query lấy món ăn của chính nhà hàng
 const GET_MY_FOODS = gql`
   query MyFoods($category: String) {
@@ -52,24 +59,35 @@ const GET_MY_FOODS = gql`
     }
   }
 `;
-
-// 2. Danh sách danh mục mới của bạn
-const CATEGORIES = [
-  'All',
-  'Cơm',
-  'Bún-Phở-Cháo',
-  'Trà sữa',
-  'Cà phê-Trà-Sinh tố',
-  'Đồ ăn nhẹ',
-  'Fast Food',
-  'Ăn vặt',
-  'Món chay',
-];
+const GET_CATEGORIES = gql`
+  query GetCategories {
+    getCategories {
+      id
+      name
+    }
+  }
+`;
+// // 2. Danh sách danh mục mới của bạn
+// const CATEGORIES = [
+//   'All',
+//   'Cơm',
+//   'Bún-Phở-Cháo',
+//   'Trà sữa',
+//   'Cà phê-Trà-Sinh tố',
+//   'Đồ ăn nhẹ',
+//   'Fast Food',
+//   'Ăn vặt',
+//   'Món chay',
+// ];
 
 export default function MyFoodList() {
   const navigation = useNavigation();
   const [selectedCategory, setSelectedCategory] = useState('All');
-
+  // 1. Gọi API lấy Categories
+  const { data: catData } = useQuery<CategoryData>(GET_CATEGORIES);
+  
+  // 2. Xử lý danh sách category (Thêm nút 'All' vào đầu)
+  const categories = ['All', ...(catData?.getCategories?.map((c: any) => c.name) || [])];
   // 3. Gọi Apollo Hook
   const { data, loading, error, refetch } = useQuery<MyFoodsResponse>(GET_MY_FOODS, {
     variables: { category: selectedCategory },
@@ -154,7 +172,7 @@ export default function MyFoodList() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContainer}
         >
-          {CATEGORIES.map((cat, index) => (
+          {categories.map((cat, index) => (
             <TouchableOpacity
               key={index}
               style={[
