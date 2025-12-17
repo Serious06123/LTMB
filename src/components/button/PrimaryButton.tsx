@@ -3,49 +3,53 @@ import {
   TouchableOpacity,
   Text,
   StyleSheet,
-  ActivityIndicator, // Thêm biểu tượng loading
+  ActivityIndicator,
   StyleProp,
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { colors } from '../../theme'; // Import màu từ file theme của bạn
+import { colors } from '../../theme';
 
-// 1. ĐỊNH NGHĨA PROPS (ĐẦU VÀO) BẰNG TYPESCRIPT
+// 1. Cập nhật Interface: Thêm 'disabled'
 type PrimaryButtonProps = {
   title: string;
   onPress: () => void;
-  loading?: boolean; // Thêm prop 'loading' (không bắt buộc)
-  style?: StyleProp<ViewStyle>; // Thêm style tùy chỉnh (không bắt buộc)
-  textStyle?: StyleProp<TextStyle>; // Thêm text style tùy chỉnh (không bắt buộc)
+  loading?: boolean;
+  disabled?: boolean; // <--- THÊM DÒNG NÀY
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 };
 
-// 2. TẠO FUNCTION COMPONENT
 const PrimaryButton = (props: PrimaryButtonProps) => {
-  const { title, onPress, loading = false, style, textStyle } = props;
+  // Lấy disabled từ props (mặc định là false nếu không truyền)
+  const { title, onPress, loading = false, disabled = false, style, textStyle } = props;
+
+  // Logic: Nút bị disable khi đang loading HOẶC khi prop disabled = true
+  const isDisabled = loading || disabled;
 
   return (
-    // 3. TRẢ VỀ GIAO DIỆN (JSX)
     <TouchableOpacity
-      style={[styles.primaryBtn, style]} // Áp dụng style cơ bản và style tùy chỉnh
+      style={[
+        styles.primaryBtn, 
+        style,
+        // Thêm style mờ đi khi bị disable để người dùng biết
+        isDisabled && { opacity: 0.6, backgroundColor: '#ccc' } 
+      ]}
       onPress={onPress}
-      disabled={loading} // Vô hiệu hóa nút khi đang loading
+      disabled={isDisabled} // Truyền vào TouchableOpacity
     >
       {loading ? (
-        // Nếu đang loading, hiển thị ActivityIndicator
         <ActivityIndicator color={colors.white} />
       ) : (
-        // Nếu không, hiển thị Text
         <Text style={[styles.primaryBtnText, textStyle]}>{title}</Text>
       )}
     </TouchableOpacity>
   );
 };
 
-// 4. Định nghĩa CSS (StyleSheet)
-// Các style này được lấy từ file LoginScreen.tsx của bạn
 const styles = StyleSheet.create({
   primaryBtn: {
-    backgroundColor: colors.primary, // Sử dụng màu primary từ theme
+    backgroundColor: colors.primary,
     height: 54,
     borderRadius: 16,
     alignItems: 'center',
@@ -53,12 +57,11 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   primaryBtnText: {
-    color: colors.white, // Sử dụng màu white từ theme
+    color: colors.white,
     fontWeight: '800',
     letterSpacing: 1,
     fontSize: 17,
   },
 });
 
-// 5. Xuất component
 export default PrimaryButton;

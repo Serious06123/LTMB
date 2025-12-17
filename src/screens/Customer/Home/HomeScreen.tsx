@@ -232,7 +232,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowDiscount(true);
-    }, 5000);
+    }, 1000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -290,7 +290,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
-                setSeeAllTitle('All Categories');
+                setSeeAllTitle('Tất cả thể loại');
                 setSeeAllVisible(true);
                 setSeeAllItems(categories);
               }}
@@ -330,7 +330,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
-                setSeeAllTitle('Open Restaurants');
+                setSeeAllTitle('Tất cả nhà hàng đang mở cửa');
                 setSeeAllVisible(true);
                 setSeeAllItems(restaurants);
               }}

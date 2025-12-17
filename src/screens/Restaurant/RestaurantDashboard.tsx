@@ -7,35 +7,31 @@ import {
     TouchableOpacity,
     ScrollView,
     Dimensions,
-    FlatList,
     ActivityIndicator,
     RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
 
 import { colors } from '../../theme';
 import { IMAGES } from '../../constants/images';
-import { BASE_URL } from '../../constants/config';
 
 const { width } = Dimensions.get('window');
 
-// --- 1. CẤU HÌNH TABS (Giống OrderHistoryScreen) ---
+// --- 1. CẤU HÌNH TABS TRẠNG THÁI ---
 const TABS = [
     { id: 'Pending', title: 'Mới', dbStatus: ['pending'] },
     { id: 'Processing', title: 'Đang làm', dbStatus: ['confirmed', 'preparing'] },
-    { id: 'Delivering', title: 'Đang giao', dbStatus: ['shipping', 'delivering'] },
+    { id: 'Delivering', title: 'Đang giao', dbStatus: ['shipping', 'delivering', 'delivered'] },
     { id: 'Completed', title: 'Hoàn tất', dbStatus: ['completed'] },
     { id: 'Cancelled', title: 'Đã hủy', dbStatus: ['cancelled'] },
 ];
 
-// --- 2. INTERFACES ---
+// --- 2. INTERFACES (ĐỊNH NGHĨA KIỂU DỮ LIỆU) ---
 interface OrderItem {
     name: string;
     quantity: number;
@@ -43,29 +39,30 @@ interface OrderItem {
     image: string;
 }
 
-interface CustomerInfo {
+interface CustomerUser {
     id: string;
     name: string;
-    avatar: string;
+    avatar: string | null;
     address?: {
         street: string;
         city: string;
-    }
+    };
 }
 
+// Dữ liệu thô từ GraphQL trả về
 interface OrderRaw {
     id: string;
     totalAmount: number;
     status: string;
     createdAt: string;
     items: OrderItem[];
-    customerUser: CustomerInfo; // Ở Dashboard nhà hàng, ta quan tâm ai là người mua
+    customerUser: CustomerUser | null;
 }
 
+// Dữ liệu đã xử lý để hiển thị lên UI (thêm các field như displayDate, image...)
 interface ProcessedOrder extends OrderRaw {
-    customerName: string;
     customerImage: any;
-    date: string;
+    displayDate: string;
     itemSummary: string;
 }
 
@@ -100,12 +97,48 @@ const GET_RESTAURANT_ORDERS = gql`
   }
 `;
 
+// --- 4. HELPER FUNCTIONS ---
+const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+        case 'pending': return '#FFA500';
+        case 'confirmed': return '#1E90FF';
+        case 'preparing': return '#9370DB';
+        case 'shipping':
+        case 'delivering': return '#FF6347';
+        case 'delivered': return '#20B2AA';
+        case 'completed': return '#32CD32';
+        case 'cancelled': return '#FF0000';
+        default: return '#888';
+    }
+};
+
+const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+        pending: 'Chờ xác nhận',
+        confirmed: 'Đã nhận đơn',
+        preparing: 'Đang nấu',
+        shipping: 'Đang giao',
+        delivering: 'Shipper đang giao',
+        delivered: 'Đã đến nơi',
+        completed: 'Hoàn tất',
+        cancelled: 'Đã hủy'
+    };
+    return map[status?.toLowerCase()] || status;
+};
+
+const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    if (!isNaN(Number(dateString)) && dateString.length > 10) {
+        return new Date(parseInt(dateString)).toLocaleString('vi-VN');
+    }
+    return new Date(dateString).toLocaleString('vi-VN');
+};
+
 export default function RestaurantDashboard() {
     const navigation = useNavigation();
     const isFocused = useIsFocused();
     const [activeTabId, setActiveTabId] = useState<string>(TABS[0].id);
 
-    // Fetch dữ liệu
     const { data, loading, error, refetch } = useQuery<RestaurantOrdersData>(GET_RESTAURANT_ORDERS, {
         fetchPolicy: 'network-only',
         notifyOnNetworkStatusChange: true,
@@ -117,70 +150,34 @@ export default function RestaurantDashboard() {
         }
     }, [isFocused]);
 
-    // --- 4. XỬ LÝ & LỌC DỮ LIỆU ---
+    // --- XỬ LÝ & LỌC DỮ LIỆU ---
     const filteredOrders = useMemo(() => {
         const orders = data?.myRestaurantOrders || [];
-
         const currentTab = TABS.find(t => t.id === activeTabId);
         const targetStatuses = currentTab ? currentTab.dbStatus : [];
 
-        const result: ProcessedOrder[] = [];
+        // Lọc và Map dữ liệu sang kiểu ProcessedOrder
+        const result: ProcessedOrder[] = orders
+            .filter((order) => targetStatuses.includes(order.status?.toLowerCase()))
+            .map((order) => ({
+                ...order,
+                customerImage: order.customerUser?.avatar
+                    ? { uri: order.customerUser.avatar }
+                    : IMAGES.introman1,
+                displayDate: formatDate(order.createdAt),
+                itemSummary: order.items?.map((i) => `${i.quantity}x ${i.name}`).join(', ') || 'Chi tiết đơn hàng',
+            }));
 
-        orders.forEach((order) => {
-            if (targetStatuses.includes(order.status.toLowerCase())) {
-                const mappedOrder: ProcessedOrder = {
-                    ...order,
-                    customerName: order.customerUser?.name || 'Khách hàng',
-                    customerImage: order.customerUser?.avatar
-                        ? (order.customerUser.avatar.startsWith('http')
-                            ? { uri: order.customerUser.avatar }
-                            : { uri: `${BASE_URL}${order.customerUser.avatar}` })
-                        : IMAGES.introman1, // Avatar mặc định nếu null
-                    date: new Date(parseInt(order.createdAt)).toLocaleString(),
-                    itemSummary: order.items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
-                };
-                result.push(mappedOrder);
-            }
-        });
-
-        // Sắp xếp đơn mới nhất lên đầu
-        return result.sort((a, b) => parseInt(b.createdAt) - parseInt(a.createdAt));
+        // Sắp xếp mới nhất lên đầu
+        return result.sort((a, b) => 
+             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
     }, [data, activeTabId]);
 
-    // Helper functions cho UI
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'pending': return '#FFA500';
-            case 'confirmed': return '#1E90FF';
-            case 'preparing': return '#9370DB';
-            case 'shipping':
-            case 'delivering': return '#FF6347';
-            case 'delivered': return '#20B2AA';
-            case 'completed': return '#32CD32';
-            case 'cancelled': return '#FF0000';
-            default: return '#888';
-        }
-    };
-
-    const getStatusText = (status: string) => {
-        const map: Record<string, string> = {
-            pending: 'Chờ xác nhận',
-            confirmed: 'Đã nhận đơn',
-            preparing: 'Đang nấu',
-            shipping: 'Đang giao',
-            delivering: 'Đang giao',
-            delivered: 'Đã giao',
-            completed: 'Hoàn tất',
-            cancelled: 'Đã hủy'
-        };
-        return map[status.toLowerCase()] || status;
-    };
-
-    // --- CHART COMPONENT ---
+    // --- COMPONENT: CHART ---
     const Chart = () => {
         const pathData = `M0,90 C60,80 80,30 140,50 S200,80 260,60 S340,20 400,40 L400,150 L0,150 Z`;
         const lineData = `M0,90 C60,80 80,30 140,50 S200,80 260,60 S340,20 400,40`;
-
         return (
             <View style={styles.chartContainer}>
                 <Svg height="140" width="100%" style={{ borderRadius: 15 }}>
@@ -194,35 +191,25 @@ export default function RestaurantDashboard() {
                     <Path d={lineData} stroke={colors.primary} strokeWidth="3" fill="none" />
                     <Circle cx="140" cy="50" r="5" fill="#fff" stroke={colors.primary} strokeWidth={2} />
                 </Svg>
-                <View style={[styles.tooltip, { left: 110, top: 10 }]}>
-                    <Text style={styles.tooltipText}>$500</Text>
-                    <View style={styles.tooltipArrow} />
-                </View>
-                <View style={styles.chartLabels}>
-                    {['10AM', '11AM', '12PM', '01PM', '02PM', '03PM', '04PM'].map((label, index) => (
-                        <Text key={index} style={styles.chartLabelText}>{label}</Text>
-                    ))}
-                </View>
             </View>
         );
     };
 
-    // --- RENDER ORDER ITEM ---
-    const renderOrderItem = ({ item }: { item: ProcessedOrder }) => (
+    // --- RENDER MỘT ĐƠN HÀNG ---
+    const renderOrderItem = (item: ProcessedOrder) => (
         <TouchableOpacity
+            key={item.id}
             style={styles.orderCard}
             onPress={() => {
-                // Điều hướng tới chi tiết đơn (nếu có) hoặc trang RunningOrders
-                // Ở đây ta tạm thời log ra id
-                console.log("View Order:", item.id);
+                console.log("Xem chi tiết đơn:", item.id);
             }}
         >
             <View style={styles.orderHeader}>
                 <Image source={item.customerImage} style={styles.customerAvatar} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={styles.customerName}>{item.customerName}</Text>
-                        <Text style={{ fontSize: 12, color: '#888' }}>#{item.id.slice(-6)}</Text>
+                        <Text style={styles.customerName}>{item.customerUser?.name || 'Khách lẻ'}</Text>
+                        <Text style={{ fontSize: 12, color: '#888' }}>#{item.id.slice(-6).toUpperCase()}</Text>
                     </View>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
                         {getStatusText(item.status)}
@@ -237,8 +224,10 @@ export default function RestaurantDashboard() {
                     {item.itemSummary}
                 </Text>
                 <View style={styles.priceRow}>
-                    <Text style={styles.dateText}>{item.date}</Text>
-                    <Text style={styles.totalPrice}>${item.totalAmount}</Text>
+                    <Text style={styles.dateText}>{item.displayDate}</Text>
+                    <Text style={styles.totalPrice}>
+                        {item.totalAmount?.toLocaleString('vi-VN')}đ
+                    </Text>
                 </View>
             </View>
         </TouchableOpacity>
@@ -249,64 +238,58 @@ export default function RestaurantDashboard() {
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
+                refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
             >
-                {/* --- HEADER --- */}
+                {/* HEADER */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.menuBtn}>
                         <Feather name="menu" size={24} color="#000" />
                     </TouchableOpacity>
                     <View style={styles.locationWrap}>
-                        <Text style={styles.locationTitle}>DASHBOARD</Text>
-                        <View style={styles.locationRow}>
-                            <Text style={styles.locationText}>Quản lý nhà hàng</Text>
-                        </View>
+                        <Text style={styles.locationTitle}>QUẢN LÝ</Text>
+                        <Text style={styles.locationText}>Nhà hàng của tôi</Text>
                     </View>
-                    <Image source={require('../../assets/images/introman3.png')} style={styles.avatar} />
+                    <Image source={IMAGES.introman3} style={styles.avatar} />
                 </View>
 
-                {/* --- THỐNG KÊ NHANH --- */}
+                {/* THỐNG KÊ NHANH */}
                 <View style={styles.statsRow}>
-                    <TouchableOpacity
-                        style={styles.statCard}
-                        onPress={() => navigation.navigate('RunningOrders' as never)}
-                    >
-                        <Text style={styles.statNumber}>{data?.myRestaurantOrders.length || 0}</Text>
-                        <Text style={styles.statLabel}>TỔNG ĐƠN</Text>
-                    </TouchableOpacity>
                     <View style={styles.statCard}>
-                        <Text style={styles.statNumber}>$2.2k</Text>
+                        <Text style={styles.statNumber}>{data?.myRestaurantOrders?.length || 0}</Text>
+                        <Text style={styles.statLabel}>TỔNG ĐƠN</Text>
+                    </View>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statNumber}>
+                            {(data?.myRestaurantOrders || [])
+                                .reduce((sum, od) => sum + (od.status === 'completed' ? od.totalAmount : 0), 0)
+                                .toLocaleString('en-US', { notation: "compact", compactDisplay: "short" })
+                            }
+                        </Text>
                         <Text style={styles.statLabel}>DOANH THU</Text>
                     </View>
                 </View>
 
-                {/* --- BIỂU ĐỒ --- */}
+                {/* BIỂU ĐỒ */}
                 <View style={styles.sectionCard}>
                     <View style={styles.sectionHeader}>
                         <View>
                             <Text style={styles.sectionTitle}>Doanh thu tuần này</Text>
-                            <Text style={styles.revenueAmount}>$2,241</Text>
-                        </View>
-                        <View style={styles.filterRow}>
-                            <TouchableOpacity style={styles.dropdownSmall}>
-                                <Text style={styles.dropdownText}>Daily</Text>
-                                <MaterialIcons name="keyboard-arrow-down" size={16} color="#666" />
-                            </TouchableOpacity>
+                            <Text style={styles.revenueAmount}>2,500,000đ</Text>
                         </View>
                     </View>
                     <Chart />
                 </View>
 
-                {/* --- LỊCH SỬ ĐƠN HÀNG (MỚI THÊM) --- */}
+                {/* DANH SÁCH ĐƠN HÀNG */}
                 <View style={styles.sectionCardNobg}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitleBlack}>Quản lý đơn hàng</Text>
-                        <TouchableOpacity onPress={() => console.log('See all')}>
-                            <Text style={styles.seeAllLink}>Xem tất cả</Text>
+                        <Text style={styles.sectionTitleBlack}>Đơn hàng</Text>
+                        <TouchableOpacity onPress={() => refetch()}>
+                            <Text style={styles.seeAllLink}>Làm mới</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* Tabs ScrollView */}
+                    {/* Tabs */}
                     <View style={{ marginBottom: 15 }}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             {TABS.map((tab) => {
@@ -326,24 +309,24 @@ export default function RestaurantDashboard() {
                         </ScrollView>
                     </View>
 
-                    {/* Danh sách đơn hàng */}
-                    {loading ? (
-                         <ActivityIndicator size="small" color={colors.primary} />
+                    {/* Render List */}
+                    {loading && !data ? (
+                         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+                    ) : error ? (
+                        <View style={styles.emptyState}>
+                            <Text style={{ color: 'red' }}>Lỗi: {error.message}</Text>
+                        </View>
                     ) : filteredOrders.length > 0 ? (
-                        filteredOrders.map(item => (
-                            <View key={item.id}>
-                                {renderOrderItem({ item })}
-                            </View>
-                        ))
+                        filteredOrders.map((item) => renderOrderItem(item))
                     ) : (
                         <View style={styles.emptyState}>
-                            <Text style={{ color: '#888' }}>Không có đơn hàng ở trạng thái này</Text>
+                            <Text style={{ color: '#888', fontStyle: 'italic' }}>
+                                Không có đơn hàng nào
+                            </Text>
                         </View>
                     )}
                 </View>
-                
-                {/* Padding Bottom */}
-                <View style={{ height: 100 }} />
+                <View style={{ height: 80 }} />
             </ScrollView>
         </SafeAreaView>
     );
@@ -352,51 +335,30 @@ export default function RestaurantDashboard() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FE' },
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
-    
-    // Header
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
+    menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 2 },
     locationWrap: { alignItems: 'center' },
     locationTitle: { fontSize: 12, color: colors.primary, fontWeight: 'bold', letterSpacing: 1 },
-    locationRow: { flexDirection: 'row', alignItems: 'center' },
     locationText: { fontSize: 14, color: '#666', fontWeight: '500' },
     avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#ddd' },
-
-    // Stats
     statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-    statCard: { backgroundColor: '#fff', width: (width - 55) / 2, paddingVertical: 20, paddingHorizontal: 15, borderRadius: 15, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8 },
-    statNumber: { fontSize: 36, fontWeight: 'bold', color: '#181C2E', marginBottom: 5 },
+    statCard: { backgroundColor: '#fff', width: (width - 50) / 2, paddingVertical: 20, alignItems: 'center', borderRadius: 15, elevation: 3 },
+    statNumber: { fontSize: 28, fontWeight: 'bold', color: '#181C2E', marginBottom: 5 },
     statLabel: { fontSize: 12, color: '#A0A5BA', fontWeight: '700', textTransform: 'uppercase' },
-
-    // Chart & Section
-    sectionCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20, marginBottom: 20, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8 },
+    sectionCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20, marginBottom: 20, elevation: 3 },
     sectionCardNobg: { marginBottom: 20 },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
     sectionTitle: { fontSize: 14, color: '#A0A5BA', fontWeight: '500' },
     sectionTitleBlack: { fontSize: 18, color: '#181C2E', fontWeight: 'bold' },
     revenueAmount: { fontSize: 24, fontWeight: 'bold', color: '#181C2E', marginTop: 4 },
-    filterRow: { alignItems: 'flex-end' },
-    dropdownSmall: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F6F6F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-    dropdownText: { fontSize: 12, color: '#181C2E', marginRight: 4 },
     seeAllLink: { color: colors.primary, fontSize: 14, fontWeight: '500' },
-
-    // Chart SVG
-    chartContainer: { marginTop: 10, position: 'relative' },
-    tooltip: { position: 'absolute', backgroundColor: '#181C2E', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, zIndex: 10 },
-    tooltipText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-    tooltipArrow: { position: 'absolute', bottom: -4, left: '45%', width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 4, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#181C2E' },
-    chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    chartLabelText: { fontSize: 10, color: '#A0A5BA' },
-
-    // Tabs
+    chartContainer: { marginTop: 10 },
     tabButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#EDEDED' },
     activeTabButton: { backgroundColor: colors.primary, borderColor: colors.primary },
     tabText: { fontSize: 14, color: '#666', fontWeight: '600' },
     activeTabText: { color: '#fff' },
-
-    // Order List Item
-    orderCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+    orderCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2 },
     orderHeader: { flexDirection: 'row', alignItems: 'center' },
     customerAvatar: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#eee' },
     customerName: { fontSize: 16, fontWeight: 'bold', color: '#181C2E' },
