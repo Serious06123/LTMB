@@ -25,7 +25,7 @@ import { useQuery } from '@apollo/client/react';
 import Geolocation from 'react-native-geolocation-service';
 import mapService from '../../../services/mapService';
 import { setLocation } from '../../../features/general/generalSlice';
-
+import { BASE_URL } from '../../../constants/config';
 // Categories will be loaded from backend via GraphQL
 const GET_CATEGORIES = gql`
   query GetCategories {
@@ -80,7 +80,7 @@ interface Restaurant {
   rating: string;
   delivery: string;
   time: string;
-  image: string | { uri: string };
+  image: string ;
 }
 interface GetRestaurantsData {
   getRestaurants: Restaurant[];
@@ -112,18 +112,35 @@ export default function HomeScreen() {
     error: restError,
   } = useQuery<GetRestaurantsData>(GET_RESTAURANTS);
 
-  const restaurants = (restData?.getRestaurants || []).map((r: any) => ({
-    id: r._id,
-    name: r.name,
-    details: r.categories?.map((c: any) => c.name).join(' - ') || '',
-    rating: r.rating ? String(r.rating) : '4.0',
-    delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
-    time: r.deliveryTime || '',
-    image: r.image || IMAGES.pizza1,
-    raw: r,
-  }));
-  console.log('Restaurants loaded:', restError);
+  const restaurants = (restData?.getRestaurants || []).map((r: any) => {
+    // 1. Lấy link gốc từ database
+    const originalImage = r.image; 
 
+    // 2. Xử lý logic đường dẫn
+    let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+
+    if (originalImage) {
+      if (originalImage.startsWith('http')) {
+        // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
+        finalUri = { uri: originalImage };
+      } else {
+        // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
+        finalUri = { uri: `${BASE_URL}${originalImage}` };
+      }
+    }
+    return {
+      id: r._id,
+      name: r.name,
+      details: r.categories?.map((c: any) => c.name).join(' - ') || '',
+      rating: r.rating ? String(r.rating) : '4.0',
+      delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      time: r.deliveryTime || '',
+      image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+      raw: r,
+    };
+  });
+  console.log('Restaurants loaded:', restError);
+  // console.log('Dữ liệu nhà hàng sau khi xử lý:', JSON.stringify(restaurants, null, 2));
 
   const categories = (catData as GetCategoriesData)?.getCategories || [];
 
@@ -299,8 +316,8 @@ export default function HomeScreen() {
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
                 setSeeAllTitle('Open Restaurants');
-                setSeeAllItems(restaurants);
                 setSeeAllVisible(true);
+                setSeeAllItems(restaurants);
               }}
             >
               <Text style={styles.seeAllText}>See All</Text>
