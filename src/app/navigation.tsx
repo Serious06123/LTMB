@@ -30,7 +30,7 @@ import ChatScreen from '../screens//Customer/Orders/ChatScreen';
 import ChangePasswordAuth from '../screens/Auth/ChangePasswordAuth';
 import ShipperTabs from './ShipperTabs';
 import EditProfileScreen from '../screens/Restaurant/EditProfileScreen';
-// import RestaurantOrderHistoryScreen from '../screens/Restaurant/RestaurantOrderHistoryScreen';
+//import RestaurantOrderHistoryScreen from '../screens/Restaurant/RestaurantOrderHistoryScreen';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {

@@ -279,7 +279,7 @@ export default function HomeScreen() {
               <Icon name="menu" size={24} color={colors.black} />
             </TouchableOpacity>
             <View style={{ flexDirection: 'column' }}>
-              <Text style={styles.deliveryText}>DELIVER TO</Text>
+              <Text style={styles.deliveryText}>Giao đến</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text
                   numberOfLines={1}
@@ -307,20 +307,20 @@ export default function HomeScreen() {
 
           {/* 5. Hiển thị tên động từ API */}
           <Text style={styles.greetingText}>
-            Hey {userName},{' '}
-            <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text>
+            Xin chào {userName} {' '}
+            {/* <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text> */}
           </Text>
 
           <TouchableOpacity style={styles.searchInput} onPress={goToSearch}>
             <AntDesign name="search1" color="#A0A5BA" size={24} />
-            <Text> Search dishes, restaurants</Text>
+            <Text> Tìm kiếm món ăn, nhà hàng</Text>
           </TouchableOpacity>
         </View>
 
         {/* Categories Section */}
         <View style={styles.categoriesSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>All Categories</Text>
+            <Text style={styles.sectionTitle}>Danh mục</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
@@ -330,7 +330,7 @@ export default function HomeScreen() {
                 setSeeAllItems(categories);
               }}
             >
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={styles.seeAllText}>Xem tất cả</Text>
               <AntDesign name="right" color="#A0A5BA" size={15} />
             </TouchableOpacity>
           </View>
@@ -365,7 +365,7 @@ export default function HomeScreen() {
       <View style={{ flex: 1 }}>
         <View style={styles.restaurantsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Open Restaurants</Text>
+            <Text style={styles.sectionTitle}>Quán đang mở cửa</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
@@ -375,7 +375,7 @@ export default function HomeScreen() {
                 setSeeAllItems(restaurants);
               }}
             >
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={styles.seeAllText}>Xem tất cả</Text>
               <AntDesign name="right" color="#A0A5BA" size={15} />
             </TouchableOpacity>
           </View>
@@ -409,12 +409,12 @@ export default function HomeScreen() {
                       <Text>{item.rating}</Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>
-                      <MaterialCommunityIcons
-                        name="truck-fast-outline"
-                        color={colors.primary}
-                        size={20}
-                      />
-                      <Text>{item.delivery}</Text>
+                      <MaterialCommunityIcons name="truck-fast-outline" color={colors.primary} size={20} />
+                      <Text>
+                        {item.delivery === 'Free'
+                          ? 'Miễn phí'
+                          : `${Number(item.delivery).toLocaleString('vi-VN')} ₫`}
+                      </Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>
                       <Feather name="clock" color={colors.primary} size={20} />

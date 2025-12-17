@@ -116,7 +116,7 @@ const FoodScreen = () => {
     id: item.id,
     name: item.name,
     restaurant: item.restaurant?.name || '',
-    price: `$${item.price}`,
+    price: item.price, // giữ là number
     image: item.image ? { uri: item.image } : IMAGES.pizza1,
     description: item.description,
     raw: item,
@@ -134,8 +134,8 @@ const FoodScreen = () => {
       name: r.name,
       image: finalUri,
       rating: r.rating ? String(r.rating) : '4.5',
-      delivery: r.deliveryFee && r.deliveryFee > 0 ? `$${r.deliveryFee}` : 'Free',
-      time: r.deliveryTime || '30 min',
+      delivery: r.deliveryFee && r.deliveryFee > 0 ? `${Number(r.deliveryFee).toLocaleString('vi-VN')} ₫` : 'Miễn phí',
+      time: r.deliveryTime || '30 phút',
       raw: r,
     };
   });
@@ -178,21 +178,21 @@ const FoodScreen = () => {
       {/* 2. Restaurants Section (Horizontal List) */}
       <View style={styles.sectionContainer}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Restaurants ({category})</Text>
+          <Text style={styles.sectionTitle}>Quán ăn ({category})</Text>
           <TouchableOpacity onPress={() => {
               setSeeAllTitle('Open Restaurants');
               setType('restaurant');
               setSeeAllItems(openRestaurantsData);
               setSeeAllVisible(true);
           }}>
-            <Text style={styles.seeAllLink}>See All</Text>
+            <Text style={styles.seeAllLink}>Xem tất cả</Text>
           </TouchableOpacity>
         </View>
 
         {restLoading ? (
            <ActivityIndicator color={colors.primary} />
         ) : openRestaurantsData.length === 0 ? (
-           <Text style={styles.emptyText}>No restaurants found for this category.</Text>
+           <Text style={styles.emptyText}>Không có quán ăn cho danh mục này.</Text>
         ) : (
           <FlatList
             horizontal
@@ -262,9 +262,12 @@ const FoodScreen = () => {
               <Image source={item.image} style={styles.foodImage} />
               <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.foodRest} numberOfLines={1}>{item.restaurant}</Text>
-              
               <View style={styles.priceRow}>
-                <Text style={styles.priceText}>{item.price}</Text>
+                <Text style={styles.priceText}>{
+                  typeof item.price === 'number'
+                    ? `${item.price.toLocaleString('vi-VN')} ₫`
+                    : item.price
+                }</Text>
                 <View style={styles.addBtn}>
                   <AntDesign name="plus" color="#fff" size={16} />
                 </View>

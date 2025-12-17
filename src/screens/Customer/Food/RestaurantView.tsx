@@ -200,61 +200,44 @@ const RestaurantViewScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <AntDesign name="left" color="#000" size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Restaurant View</Text>
-        <TouchableOpacity
-          style={styles.seeMore}
-          onPress={() => setIsFilterVisible(true)}
-        >
+        <Text style={styles.headerTitle}>Quán ăn</Text>
+        <TouchableOpacity style={styles.seeMore} onPress={() => setIsFilterVisible(true)}>
           <AntDesign name="ellipsis1" color="#000" size={24} />
         </TouchableOpacity>
       </View>
 
       {/* Restaurant Info */}
       <View style={styles.restaurantHeaderWrapper}>
-        <View style={styles.imageContainer}>
-          <Image
-            source={restaurantImage}
-            style={styles.imagePlaceholder}
-            resizeMode="cover"
-          />
-          <Pressable
-            onPress={() => setIsFavorite(!isFavorite)}
-            style={styles.favoriteButton}
-          >
-            {isFavorite ? (
-              <AntDesign name="heart" color="#ff0000" size={20} />
-            ) : (
-              <Feather name="heart" color="#ffffffff" size={20} />
-            )}
-          </Pressable>
-        </View>
-
-        <View style={styles.infoBlock}>
-          <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
-          <Text style={styles.restaurantDescription} numberOfLines={2}>
-            {restaurant.description || 'The best food in town awaiting you.'}
-          </Text>
-          <View style={styles.restaurantMeta}>
-            <View style={styles.metaItem}>
-              <AntDesign name="star" color={colors.primary} size={16} />
-              <Text style={styles.metaText}>{restaurant.rating || 4.5}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <MaterialCommunityIcons
-                name="truck-delivery-outline"
-                color={colors.primary}
-                size={16}
-              />
-              <Text style={styles.metaText}>
-                {restaurant.deliveryFee ? `$${restaurant.deliveryFee}` : 'Free'}
-              </Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Feather name="clock" color={colors.primary} size={16} />
-              <Text style={styles.metaText}>
-                {restaurant.deliveryTime || '30 min'}
-              </Text>
-            </View>
+          <View style={styles.imageContainer}>
+            <Image source={restaurantImage} style={styles.imagePlaceholder} resizeMode="cover" />
+            <Pressable onPress={() => setIsFavorite(!isFavorite)} style={styles.favoriteButton}>
+              {isFavorite ? <AntDesign name="heart" color="#ff0000" size={20} /> : <Feather name="heart" color="#ffffffff" size={20} />}
+            </Pressable>
+          </View>
+          
+          <View style={styles.infoBlock}>
+             <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
+             <Text style={styles.restaurantDescription} numberOfLines={2}>
+               {restaurant.description || "Món ăn ngon, phục vụ tận tình và không gian thoải mái."}
+             </Text>
+             <View style={styles.restaurantMeta}>
+                <View style={styles.metaItem}>
+                    <AntDesign name="star" color={colors.primary} size={16} />
+                    <Text style={styles.metaText}>{restaurant.rating || 4.5}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                    <MaterialCommunityIcons name="truck-delivery-outline" color={colors.primary} size={16} />
+                    <Text style={styles.metaText}>
+                      {restaurant.deliveryFee && restaurant.deliveryFee > 0
+                        ? `${Number(restaurant.deliveryFee).toLocaleString('vi-VN')} ₫`
+                        : 'Miễn phí'}
+                    </Text>
+                </View>
+                <View style={styles.metaItem}>
+                    <Feather name="clock" color={colors.primary} size={16} />
+                    <Text style={styles.metaText}>{restaurant.deliveryTime || '30 phút'}</Text>
+                </View>
+             </View>
           </View>
         </View>
       </View>
@@ -294,57 +277,42 @@ const RestaurantViewScreen = () => {
 
       {/* Foods Grid */}
       <View style={styles.foodsContainer}>
-        <Text style={styles.sectionTitle}>
-          {selectedCategory === 'All'
-            ? 'Full Menu'
-            : `${selectedCategory} Menu`}{' '}
-          ({displayedFoods.length})
-        </Text>
-
-        {foodLoading ? (
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-            style={{ marginTop: 20 }}
-          />
-        ) : (
-          <FlatList
-            showsVerticalScrollIndicator={false}
-            numColumns={2}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
-            data={displayedFoods} // Hiển thị list đã lọc client-side
-            keyExtractor={item => item.id}
-            ListEmptyComponent={
-              <Text
-                style={{ textAlign: 'center', marginTop: 20, color: '#999' }}
-              >
-                No foods found.
-              </Text>
-            }
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.foodItem}
-                onPress={() => goToFoodDetail(item)}
-              >
-                <Image source={item.image} style={styles.foodImage} />
-                <Text style={styles.foodName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.foodCat} numberOfLines={1}>
-                  {item.category}
-                </Text>
-                <View style={styles.priceRow}>
-                  <Text style={styles.foodPrice}>${item.price}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <AntDesign name="staro" color={colors.primary} size={15} />
-                    <Text> {item.rating} </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
-        )}
+          <Text style={styles.sectionTitle}>
+              {selectedCategory === 'All' ? 'Full Menu' : `${selectedCategory} Menu`} ({displayedFoods.length})
+          </Text>
+          
+          {foodLoading ? (
+             <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 20}} />
+          ) : (
+              <FlatList
+                showsVerticalScrollIndicator={false}
+                numColumns={2}
+                columnWrapperStyle={{justifyContent: 'space-between'}}
+                data={displayedFoods} // Hiển thị list đã lọc client-side
+                keyExtractor={(item) => item.id}
+                ListEmptyComponent={
+                    <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>
+                        No foods found.
+                    </Text>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.foodItem} onPress={() => goToFoodDetail(item)}>
+                 
+                    <Image source={item.image} style={styles.foodImage} />
+                    <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.foodCat} numberOfLines={1}>{item.category}</Text>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.foodPrice}>{Number(item.price).toLocaleString('vi-VN')} ₫</Text>
+                      <View style={{flexDirection: 'row', alignItems: 'center'}}>     
+                      <AntDesign name="staro" color={colors.primary} size={15} />             
+                      <Text> {item.rating} </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                contentContainerStyle={{paddingBottom: 20}}
+              />
+          )}
       </View>
 
       {isFilterVisible && (

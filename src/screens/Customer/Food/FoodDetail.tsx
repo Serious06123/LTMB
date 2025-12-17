@@ -149,7 +149,7 @@ const FoodDetailScreen = () => {
   }
 
   // Calculate Price
-  const totalPrice = (foodData.price * quantity).toFixed(1);
+  const totalPrice = foodData.price * quantity;
 
   const handleAddToCart = async () => {
     // Chuẩn bị item theo CartItemInput
@@ -175,7 +175,7 @@ const FoodDetailScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <AntDesign name="left" color="#000" size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Details</Text>
+        <Text style={styles.headerTitle}>Chi tiết món ăn</Text>
       </View>
 
       <ScrollView
@@ -244,18 +244,20 @@ const FoodDetailScreen = () => {
                 size={20}
               />
               <Text style={{ color: '#9796A1' }}>
-                ${foodData.restaurant?.deliveryFee || 0}
+                ${typeof  foodData.restaurant?.deliveryFee === 'number'
+                ? `${foodData.restaurant.deliveryFee.toLocaleString('vi-VN')} ₫`
+                : 'Miễn phí'}
               </Text>
             </View>
             <View style={styles.restaurantMetaDetails}>
               <Feather name="clock" color={colors.primary} size={20} />
               <Text style={{ color: '#9796A1' }}>
-                {foodData.restaurant?.deliveryTime || '20 min'}
+                {foodData.restaurant?.deliveryTime || '20 phút'}
               </Text>
             </View>
           </View>
 
-          {/* Size Options (Hardcode vì DB chưa có) */}
+          {/* Size Options (Hardcode vì DB chưa có)
           <View style={styles.sizeContainer}>
             <Text style={styles.sectionTitle}>SIZE:</Text>
             <View style={[styles.sizeOptionsRow]}>
@@ -282,12 +284,12 @@ const FoodDetailScreen = () => {
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </View> */}
 
           {/* --- REVIEWS LIST (Dữ liệu thật) --- */}
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>
-              REVIEWS ({reviewsData.length})
+              ĐÁNH GIÁ ({reviewsData.length})
             </Text>
             {reviewsData.length === 0 ? (
               <Text style={{ color: '#A0A5BA', fontStyle: 'italic' }}>
@@ -340,7 +342,7 @@ const FoodDetailScreen = () => {
       {/* --- BOTTOM ACTION --- */}
       <View style={styles.priceContainer}>
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>${totalPrice}</Text>
+          <Text style={styles.priceText}>{totalPrice.toLocaleString('vi-VN')} ₫</Text>
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               style={styles.quantityButton}
