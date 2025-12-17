@@ -22,6 +22,9 @@ import DiscountPopup from '../../../components/DiscountPopup';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
+import Geolocation from 'react-native-geolocation-service';
+import mapService from '../../../services/mapService';
+import { setLocation } from '../../../features/general/generalSlice';
 
 // Categories will be loaded from backend via GraphQL
 const GET_CATEGORIES = gql`
@@ -120,18 +123,7 @@ export default function HomeScreen() {
     raw: r,
   }));
   console.log('Restaurants loaded:', restError);
-  // Debug logs to help diagnose missing categories
-  // useEffect(() => {
-  //   console.log('[HomeScreen] GET_CATEGORIES loading:', catLoading);
-  //   if (catError) {
-  //     console.error('[HomeScreen] GET_CATEGORIES error:', catError);
-  //   }
-  //   if (catData) {
-  //     console.log('[HomeScreen] GET_CATEGORIES data:', catData);
-  //   }
-  // }, [catData, catLoading, catError]);
 
-  // Fix: Ensure catData is typed to match the GraphQL response
 
   const categories = (catData as GetCategoriesData)?.getCategories || [];
 

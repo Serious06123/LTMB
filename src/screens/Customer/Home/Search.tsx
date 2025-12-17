@@ -43,6 +43,28 @@ interface getCategoriesData {
   getCategories: Category[];
 }
 
+interface Restaurant {
+  _id: string;
+  name: string;
+  rating: number;
+  reviews?: number;
+  image?: string;
+  deliveryTime?: number;
+  deliveryFee?: number;
+  isOpen?: boolean;
+  categories: Category[];
+  address: {
+    street: string;
+    city: string;
+    lat: number;
+    lng: number;
+  };
+}
+
+interface getRestaurantsData {
+  getRestaurants: Restaurant[];
+}
+
 const SearchScreen = () => {
   const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
@@ -151,7 +173,7 @@ const SearchScreen = () => {
     data: restData,
     loading: restLoading,
     error: restError,
-  } = useQuery(GET_RESTAURANTS);
+  } = useQuery<getRestaurantsData>(GET_RESTAURANTS);
   const restaurants = (restData?.getRestaurants || []).map((r: any) => ({
     id: r._id,
     name: r.name,
