@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,121 +6,165 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../../../theme'; //
-import { IMAGES } from '../../../constants/images';
+import { colors } from '../../../theme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// 1. Định nghĩa các trạng thái đơn hàng (Bỏ 'Trả hàng' theo yêu cầu)
-const TABS = [
-  { id: 'Processing', title: 'Đang xử lý' },
-  { id: 'Delivering', title: 'Đang giao' },
-  { id: 'Completed', title: 'Đã giao' },
-  { id: 'Cancelled', title: 'Đã hủy' },
-];
+// GraphQL Imports
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+import RatingModal from '../../../components/RatingModal';
 
-// 2. Mock Data (Dữ liệu giả lập để test giao diện)
-const MOCK_ORDERS = [
-  {
-    id: 'ORD001',
-    restaurantName: 'Rose Garden Restaurant',
-    image: IMAGES.pizza1, //
-    items: '2x Chicken Burger, 1x Coca Cola',
-    totalPrice: 15.50,
-    status: 'Processing',
-    date: '15 Dec, 10:30 AM',
-    itemCount: 3,
-  },
-  {
-    id: 'ORD002',
-    restaurantName: 'Cà phê Ông Bầu',
-    image: IMAGES.pizza2, //
-    items: '1x Cà phê sữa đá, 1x Bánh mì',
-    totalPrice: 5.20,
-    status: 'Delivering',
-    date: '15 Dec, 09:15 AM',
-    itemCount: 2,
-  },
-  {
-    id: 'ORD003',
-    restaurantName: 'KFC Chicken',
-    image: IMAGES.pizza1,
-    items: '1x Combo Gà Rán',
-    totalPrice: 12.00,
-    status: 'Completed',
-    date: '14 Dec, 08:00 PM',
-    itemCount: 1,
-  },
-  {
-    id: 'ORD004',
-    restaurantName: 'Pizza Hut',
-    image: IMAGES.pizza1,
-    items: '1x Pizza Hải Sản',
-    totalPrice: 20.00,
-    status: 'Cancelled',
-    date: '10 Dec, 12:00 PM',
-    itemCount: 1,
-  },
+// Define types for the GraphQL query response
+interface Order {
+  id: string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  items: { name: string; quantity: number }[];
+  restaurant: { name: string; avatar?: string };
+}
+
+interface GetMyOrdersData {
+  myOrders: Order[];
+}
+
+
+// 1. QUERY LẤY DỮ LIỆU THẬT
+const GET_MY_ORDERS = gql`
+  query GetMyOrders {
+    myOrders {
+      id
+      totalAmount
+      status
+      createdAt
+      items {
+        name
+        quantity
+      }
+      restaurant {
+        name
+        avatar
+      }
+    }
+  }
+`;
+
+const TABS = [
+  { id: 'Processing', title: 'Đang xử lý', dbStatus: ['pending', 'confirmed', 'preparing'] },
+  { id: 'Delivering', title: 'Đang giao', dbStatus: ['delivering'] },
+  { id: 'Completed', title: 'Đã giao', dbStatus: ['completed', 'delivered'] },
+  { id: 'Cancelled', title: 'Đã hủy', dbStatus: ['cancelled'] },
 ];
 
 const OrderHistoryScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState('Processing');
+  const [showRating, setShowRating] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
-  // Lọc đơn hàng theo tab đang chọn
-  const filteredOrders = MOCK_ORDERS.filter(order => order.status === activeTab);
+  // 2. GỌI API
+  const { data, loading, error, refetch } = useQuery<GetMyOrdersData>(GET_MY_ORDERS, {
+    pollInterval: 5000, // Tự động cập nhật mỗi 5 giây (Realtime cơ bản)
+  });
 
-  // Render từng thẻ đơn hàng
+  // 3. XỬ LÝ DỮ LIỆU TỪ SERVER
+  const orders = data?.myOrders || [];
+
+  // Lọc đơn hàng theo Tab
+  const filteredOrders = orders.filter((order: any) => {
+    const currentTab = TABS.find(t => t.id === activeTab);
+    // So sánh status trong DB với danh sách status của Tab
+    return currentTab?.dbStatus.includes(order.status);
+  });
+
+  const handleOpenRating = (order: any) => {
+    setSelectedOrder(order);
+    setShowRating(true);
+  };
+
   const renderOrderItem = ({ item }: { item: any }) => {
-    // Màu sắc trạng thái
+    // Mapping trạng thái sang tiếng Việt và màu sắc
     let statusColor = colors.primary;
-    let statusText = '';
+    let statusText = item.status;
     
-    switch(item.status) {
-        case 'Processing': statusColor = '#FFA500'; statusText = 'Đang chuẩn bị'; break;
-        case 'Delivering': statusColor = '#1E90FF'; statusText = 'Đang giao hàng'; break;
-        case 'Completed': statusColor = '#28a745'; statusText = 'Giao thành công'; break;
-        case 'Cancelled': statusColor = '#dc3545'; statusText = 'Đã hủy'; break;
+    // Logic hiển thị trạng thái
+    if (['pending', 'confirmed', 'preparing'].includes(item.status)) {
+        statusColor = '#FFA500'; statusText = 'Đang chuẩn bị';
+    } else if (item.status === 'delivering') {
+        statusColor = '#1E90FF'; statusText = 'Đang giao hàng';
+    } else if (['completed', 'delivered'].includes(item.status)) {
+        statusColor = '#28a745'; statusText = 'Giao thành công';
+    } else if (item.status === 'cancelled') {
+        statusColor = '#dc3545'; statusText = 'Đã hủy';
     }
+
+    // Tạo chuỗi mô tả món ăn (Ví dụ: "2x Phở Bò, 1x Trà đá")
+    const itemsDescription = item.items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
+
+    // Format ngày tháng
+    const dateStr = new Date(parseInt(item.createdAt)).toLocaleString('vi-VN');
+
+    // Ảnh mặc định nếu quán không có ảnh
+    const restaurantImage = item.restaurant?.avatar 
+        ? { uri: item.restaurant.avatar } 
+        : require('../../../assets/images/pizza1.png'); // Ảnh mặc định
 
     return (
       <View style={styles.card}>
-        {/* Header của Card: Tên quán + Trạng thái */}
         <View style={styles.cardHeader}>
-            <Text style={styles.restaurantName}>{item.restaurantName}</Text>
+            <Text style={styles.restaurantName}>{item.restaurant?.name || 'Nhà hàng'}</Text>
             <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Body của Card: Ảnh + Thông tin món */}
         <View style={styles.cardBody}>
-            <Image source={item.image} style={styles.foodImage} />
+            <Image source={restaurantImage} style={styles.foodImage} />
             <View style={styles.infoContainer}>
-                <Text style={styles.itemsText} numberOfLines={2}>{item.items}</Text>
-                <Text style={styles.dateText}>{item.date}</Text>
+                <Text style={styles.itemsText} numberOfLines={2}>{itemsDescription}</Text>
+                <Text style={styles.dateText}>{dateStr}</Text>
                 <View style={styles.priceRow}>
-                     <Text style={styles.itemCount}>{item.itemCount} món</Text>
-                     <Text style={styles.totalPrice}>${item.totalPrice.toFixed(2)}</Text>
+                     <Text style={styles.itemCount}>{item.items.length} món</Text>
+                     <Text style={styles.totalPrice}>
+                        {item.totalAmount.toLocaleString('vi-VN')} đ
+                     </Text>
                 </View>
             </View>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Footer của Card: Nút bấm */}
         <View style={styles.cardFooter}>
             <TouchableOpacity style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>Chi tiết</Text>
             </TouchableOpacity>
             
-            {item.status === 'Completed' || item.status === 'Cancelled' ? (
+            {(item.status === 'completed' || item.status === 'delivered') ? (
+                 <>
+                    <TouchableOpacity 
+                        style={[styles.secondaryButton, { borderColor: '#FFA500', marginLeft: 10 }]}
+                        onPress={() => handleOpenRating(item)}
+                    >
+                        <Text style={{ color: '#FFA500', fontWeight: '600' }}>Đánh giá</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.primaryButton, {marginLeft: 10}]}>
+                        <Text style={styles.primaryButtonText}>Đặt lại</Text>
+                    </TouchableOpacity>
+                 </>
+            ) : item.status === 'cancelled' ? (
                  <TouchableOpacity style={styles.primaryButton}>
                     <Text style={styles.primaryButtonText}>Đặt lại</Text>
                  </TouchableOpacity>
             ) : (
-                <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('TrackOrder')}>
+                <TouchableOpacity 
+                    style={styles.primaryButton} 
+                    onPress={() => navigation.navigate('TrackOrder', { orderId: item.id })}
+                >
                     <Text style={styles.primaryButtonText}>Theo dõi</Text>
                  </TouchableOpacity>
             )}
@@ -129,16 +173,23 @@ const OrderHistoryScreen = ({ navigation }: any) => {
     );
   };
 
+  // Hiển thị Loading khi đang tải dữ liệu lần đầu
+  if (loading && !data) {
+      return (
+          <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+      );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
       
-      {/* Header Trang */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Lịch sử đơn hàng</Text>
       </View>
 
-      {/* Thanh Tabs Trạng Thái */}
       <View style={styles.tabsContainer}>
         <FlatList
           horizontal
@@ -164,13 +215,15 @@ const OrderHistoryScreen = ({ navigation }: any) => {
         />
       </View>
 
-      {/* Danh sách đơn hàng */}
       <FlatList
         data={filteredOrders}
         renderItem={renderOrderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={refetch} />
+        }
         ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
                 <MaterialCommunityIcons name="clipboard-text-outline" size={60} color="#ccc" />
@@ -178,11 +231,22 @@ const OrderHistoryScreen = ({ navigation }: any) => {
             </View>
         )}
       />
+
+      {selectedOrder && (
+        <RatingModal
+            visible={showRating}
+            onClose={() => setShowRating(false)}
+            orderId={selectedOrder.id}
+            restaurantName={selectedOrder.restaurant?.name}
+        />
+      )}
+
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  // ... (Giữ nguyên styles như cũ)
   container: {
     flex: 1,
     backgroundColor: '#F6F6F6',
@@ -214,7 +278,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   activeTabItem: {
-    backgroundColor: '#FFF0F0', // Màu nền nhạt của primary
+    backgroundColor: '#FFF0F0', 
     borderColor: colors.primary,
   },
   tabText: {
@@ -269,6 +333,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     marginRight: 12,
+    backgroundColor: '#eee'
   },
   infoContainer: {
     flex: 1,
@@ -302,6 +367,7 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 10,
     marginTop: 5,
   },
