@@ -86,7 +86,7 @@ export default function ShipperProfileScreen({ navigation }: any) {
         {/* Menu Options - Sử dụng tên icon Ionicons */}
         <View style={styles.menuContainer}>
           <Text style={styles.menuSectionTitle}>Tài khoản</Text>
-          {renderMenuItem('Thông tin cá nhân', 'person-outline')}
+          {renderMenuItem('Thông tin cá nhân', 'person-outline', () => navigation.navigate('EditProfileScreen'))}
           {renderMenuItem('Phương tiện & Giấy tờ', 'bicycle-outline')}
           {renderMenuItem('Tài khoản ngân hàng', 'card-outline')}
           

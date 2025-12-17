@@ -24,7 +24,7 @@ export default function ShipperHistoryScreen() {
   const orders = (data && Array.isArray((data as any).myShippingOrders))
     ? (data as any).myShippingOrders.map((order: any) => ({
         id: order.id,
-        date: order.createdAt ? new Date(Number(order.createdAt)).toLocaleString('vi-VN') : '',
+        date: order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : '',
         restaurant: order.restaurantUser?.name || '',
         customerAddress: order.shippingAddress ? `${order.shippingAddress.street}, ${order.shippingAddress.city}` : '',
         total: order.totalAmount ? `${order.totalAmount.toLocaleString('vi-VN')}đ` : '',
