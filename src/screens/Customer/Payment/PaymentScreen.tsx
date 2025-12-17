@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { gql } from '@apollo/client';
+import { useMutation } from '@apollo/client/react';
 import {
   View,
   Text,
@@ -8,7 +10,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import { useNavigation , useRoute} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/AntDesign';
 import { colors } from '../../../theme'; // Import màu từ theme
 import PrimaryButton from '../../../components/button/PrimaryButton';
@@ -22,32 +24,93 @@ type PaymentMethod = 'cash' | 'qr';
 export default function PaymentScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-
-  const { totalAmount } = route.params as { totalAmount: number } || { totalAmount: 0 };
+  const { totalAmount, selectedShops, itemCount } = (route.params as any) || {
+    totalAmount: 0,
+    selectedShops: [],
+    itemCount: 0,
+  };
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('qr');
 
-    // Hàm format tiền tệ (cho giống bên Cart)
+  // Hàm format tiền tệ (cho giống bên Cart)
   const formatCurrency = (amount: number) => {
-    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "đ";
+    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
   };
   // Xử lý khi nhấn thanh toán
-  const handlePay = () => {
-    Alert.alert(
-      "Thanh toán thành công", 
-      `Số tiền: ${formatCurrency(totalAmount)}\nPhương thức: ${selectedMethod === 'qr' ? 'Chuyển khoản QR' : 'Tiền mặt'}`,
-      [{ text: "Theo dõi đơn hàng", onPress: () => navigation.navigate('TrackOrderScreen' as never) }]
-    );
+  const CREATE_ORDER = gql`
+    mutation CreateOrder($input: CreateOrderInput!) {
+      createOrder(input: $input) {
+        id
+        totalAmount
+        status
+        createdAt
+      }
+    }
+  `;
+
+  const CLEAR_CART = gql`
+    mutation ClearCart {
+      clearCart
+    }
+  `;
+
+  const [createOrder, { loading: creating }] = useMutation(CREATE_ORDER);
+
+  const handlePay = async () => {
+    try {
+      const items =
+        (selectedShops && selectedShops.length > 0
+          ? selectedShops[0].items
+          : []) || [];
+      const restaurantId =
+        selectedShops && selectedShops.length > 0
+          ? selectedShops[0].shopId
+          : null;
+      const payload = {
+        restaurantId,
+        items: items.map((i: any) => ({
+          foodId: i.id,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          image: i.image?.uri || i.image,
+        })),
+        totalAmount: totalAmount || 0,
+        paymentMethod: selectedMethod === 'qr' ? 'ONLINE' : 'COD',
+      };
+
+      const { data } = await createOrder({ variables: { input: payload } });
+      // Fix: type assertion for data
+      const orderId = (data as { createOrder: { id: string } }).createOrder.id;
+      // Note: Do not call clearCart() here. The server `createOrder` resolver
+      // now removes only the paid items from the user's cart and updates it.
+
+      Alert.alert(
+        'Thanh toán thành công',
+        `Đơn hàng đã được tạo. Mã đơn: ${orderId}`,
+        [
+          {
+            text: 'Theo dõi đơn hàng',
+            onPress: () =>
+              (navigation as any).navigate('TrackOrderScreen', { orderId }),
+          },
+        ],
+      );
+    } catch (err) {
+      console.error('createOrder failed', err);
+      Alert.alert('Lỗi', 'Không thể tạo đơn hàng. Vui lòng thử lại.');
+    }
   };
 
   // Component hiển thị một ô chọn phương thức (Cash/QR)
-  const renderMethodOption = (id: PaymentMethod, title: string, iconName: string) => {
+  const renderMethodOption = (
+    id: PaymentMethod,
+    title: string,
+    iconName: string,
+  ) => {
     const isSelected = selectedMethod === id;
     return (
       <TouchableOpacity
-        style={[
-          styles.methodItem,
-          isSelected && styles.methodItemActive,
-        ]}
+        style={[styles.methodItem, isSelected && styles.methodItemActive]}
         onPress={() => setSelectedMethod(id)}
       >
         {isSelected && (
@@ -55,12 +118,14 @@ export default function PaymentScreen() {
             <Icon name="checkcircle" size={20} color={colors.primary} />
           </View>
         )}
-        <Icon 
-          name={iconName} 
-          size={28} 
-          color={isSelected ? colors.primary : '#A0A5BA'} 
+        <Icon
+          name={iconName}
+          size={28}
+          color={isSelected ? colors.primary : '#A0A5BA'}
         />
-        <Text style={[styles.methodText, isSelected && styles.methodTextActive]}>
+        <Text
+          style={[styles.methodText, isSelected && styles.methodTextActive]}
+        >
           {title}
         </Text>
       </TouchableOpacity>
@@ -71,11 +136,14 @@ export default function PaymentScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Icon name="arrowleft" size={24} color="#181C2E" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thanh toán</Text>
-        <View style={{ width: 40 }} /> 
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Chọn phương thức */}
@@ -87,7 +155,9 @@ export default function PaymentScreen() {
       {/* Khu vực hiển thị chính */}
       <View style={styles.mainDisplayContainer}>
         <Text style={styles.sectionTitle}>
-          {selectedMethod === 'qr' ? 'Quét mã để thanh toán' : 'Thanh toán khi nhận hàng'}
+          {selectedMethod === 'qr'
+            ? 'Quét mã để thanh toán'
+            : 'Thanh toán khi nhận hàng'}
         </Text>
 
         <View style={styles.cardDisplay}>
@@ -95,15 +165,23 @@ export default function PaymentScreen() {
             <View style={styles.qrContainer}>
               <View style={styles.qrFrame}>
                 {/* Tạo QR Code chứa nội dung chuyển khoản số tiền tương ứng */}
-                <Image 
-                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ChuyenKhoan_${totalAmount}` }} 
-                  style={styles.qrImage} 
+                <Image
+                  source={{
+                    uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ChuyenKhoan_${totalAmount}`,
+                  }}
+                  style={styles.qrImage}
                 />
               </View>
               <Text style={styles.qrNote}>Ngân hàng MB Bank</Text>
               <Text style={styles.qrOwner}>NGUYEN VAN A</Text>
               <Text style={styles.qrNumber}>1234 5678 9999</Text>
-              <Text style={{color: colors.primary, marginTop: 5, fontWeight: 'bold'}}>
+              <Text
+                style={{
+                  color: colors.primary,
+                  marginTop: 5,
+                  fontWeight: 'bold',
+                }}
+              >
                 Số tiền: {formatCurrency(totalAmount)}
               </Text>
             </View>
@@ -113,7 +191,11 @@ export default function PaymentScreen() {
                 <Icon name="wallet" size={60} color={colors.primary} />
               </View>
               <Text style={styles.cashText}>
-                Shipper sẽ thu <Text style={{fontWeight: 'bold', color: colors.primary}}>{formatCurrency(totalAmount)}</Text> tiền mặt khi giao hàng.
+                Shipper sẽ thu{' '}
+                <Text style={{ fontWeight: 'bold', color: colors.primary }}>
+                  {formatCurrency(totalAmount)}
+                </Text>{' '}
+                tiền mặt khi giao hàng.
               </Text>
               <Text style={styles.cashSubText}>
                 Vui lòng chuẩn bị tiền lẻ để thanh toán nhanh hơn.
@@ -127,16 +209,12 @@ export default function PaymentScreen() {
       <View style={styles.footer}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TỔNG CỘNG:</Text>
-          
+
           {/* 4. Hiển thị số tiền động tại đây */}
           <Text style={styles.totalAmount}>{formatCurrency(totalAmount)}</Text>
-        
         </View>
-        
-        <PrimaryButton 
-          title="XÁC NHẬN THANH TOÁN"
-          onPress={handlePay}
-        />
+
+        <PrimaryButton title="XÁC NHẬN THANH TOÁN" onPress={handlePay} />
       </View>
     </SafeAreaView>
   );
@@ -306,7 +384,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#A0A5BA',
     marginBottom: 4,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   totalAmount: {
     fontSize: 30,
