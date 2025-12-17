@@ -98,6 +98,7 @@ const FoodScreen = () => {
   const [seeAllVisible, setSeeAllVisible] = useState(false);
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
+  const [type, setType] = useState<'restaurant' | 'food'>('restaurant');
 
   // --- QUERY DATA ---
   const { data: foodData, loading: foodLoading } = useQuery<GetFoodsData>(GET_FOODS, {
@@ -180,6 +181,7 @@ const FoodScreen = () => {
           <Text style={styles.sectionTitle}>Quán ăn ({category})</Text>
           <TouchableOpacity onPress={() => {
               setSeeAllTitle('Open Restaurants');
+              setType('restaurant');
               setSeeAllItems(openRestaurantsData);
               setSeeAllVisible(true);
           }}>
@@ -279,6 +281,7 @@ const FoodScreen = () => {
         visible={seeAllVisible}
         title={seeAllTitle}
         items={seeAllItems}
+        itemType={type}
         onClose={() => setSeeAllVisible(false)}
       />
     </View>

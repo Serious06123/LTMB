@@ -267,9 +267,7 @@ export default function HomeScreen() {
             </View>
             <TouchableOpacity style={styles.cartButton} onPress={goToCart}>
               <MaterialCommunityIcons name="cart" color="#fff" size={24} />
-              {/* <View style={styles.notify}>
-                <Text style={styles.notifyText}>' '</Text>
-              </View> */}
+              
             </TouchableOpacity>
           </View>
 

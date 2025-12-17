@@ -70,36 +70,44 @@ const GET_CATEGORIES = gql`
 const RestaurantViewScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
-  
+
   // Nhận thêm initialCategory từ FoodScreen
-  const { restaurant, initialCategory } = route.params as { restaurant: any, initialCategory?: string } || {};
+  const { restaurant, initialCategory } =
+    (route.params as { restaurant: any; initialCategory?: string }) || {};
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
-  
+
   // State quản lý danh mục đang chọn. Mặc định ưu tiên initialCategory, nếu không có thì là 'All'
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialCategory || 'All',
+  );
 
   // --- FETCH DATA ---
-  
+
   // A. Lấy tất cả danh mục hệ thống (để sắp xếp thứ tự cho đẹp nếu cần)
   const { data: catData } = useQuery<GetCategoriesData>(GET_CATEGORIES);
-  
+
   // B. Lấy TOÀN BỘ món ăn của nhà hàng
-  const restaurantIdToFetch = restaurant?.accountId || restaurant?._id; 
-  const { data: foodData, loading: foodLoading } = useQuery<GetFoodsByRestaurantData>(GET_ALL_FOODS_BY_RESTAURANT, {
-    variables: { restaurantId: restaurantIdToFetch }, // Không truyền category để lấy tất cả
-    skip: !restaurantIdToFetch,
-    fetchPolicy: 'cache-and-network'
-  });
+  const restaurantIdToFetch = restaurant?.accountId || restaurant?._id;
+  const { data: foodData, loading: foodLoading } =
+    useQuery<GetFoodsByRestaurantData>(GET_ALL_FOODS_BY_RESTAURANT, {
+      variables: { restaurantId: restaurantIdToFetch }, // Không truyền category để lấy tất cả
+      skip: !restaurantIdToFetch,
+      fetchPolicy: 'cache-and-network',
+    });
 
   // --- XỬ LÝ LOGIC HIỂN THỊ (Client-side) ---
 
   // 1. Chuẩn hóa danh sách món ăn
   const allFoods = useMemo(() => {
-    return (foodData?.getFoodsByRestaurant || []).map((item) => ({
+    return (foodData?.getFoodsByRestaurant || []).map(item => ({
       ...item,
-      image: item.image ? (item.image.startsWith('http') ? { uri: item.image } : { uri: `${BASE_URL}${item.image}` }) : IMAGES.pizza1
+      image: item.image
+        ? item.image.startsWith('http')
+          ? { uri: item.image }
+          : { uri: `${BASE_URL}${item.image}` }
+        : IMAGES.pizza1,
     }));
   }, [foodData]);
 
@@ -109,12 +117,14 @@ const RestaurantViewScreen = () => {
 
     // Lấy danh sách các category có trong list món ăn
     const existingCategories = new Set(allFoods.map(f => f.category));
-    
+
     // Lấy danh sách gốc từ server để giữ đúng thứ tự (nếu muốn)
     const systemCategories = (catData?.getCategories || []).map(c => c.name);
 
     // Lọc: Chỉ lấy những category hệ thống CÓ TỒN TẠI trong món ăn của quán này
-    const filtered = systemCategories.filter(cat => existingCategories.has(cat));
+    const filtered = systemCategories.filter(cat =>
+      existingCategories.has(cat),
+    );
 
     // Luôn thêm 'All' vào đầu
     return ['All', ...filtered];
@@ -129,13 +139,15 @@ const RestaurantViewScreen = () => {
   // 4. Effect: Nếu initialCategory thay đổi hoặc load xong data, đảm bảo selectedCategory hợp lệ
   useEffect(() => {
     if (initialCategory && activeCategories.includes(initialCategory)) {
-        setSelectedCategory(initialCategory);
-    } else if (!activeCategories.includes(selectedCategory) && selectedCategory !== 'All') {
-        // Nếu danh mục đang chọn không còn tồn tại (do filter), reset về All
-        setSelectedCategory('All');
+      setSelectedCategory(initialCategory);
+    } else if (
+      !activeCategories.includes(selectedCategory) &&
+      selectedCategory !== 'All'
+    ) {
+      // Nếu danh mục đang chọn không còn tồn tại (do filter), reset về All
+      setSelectedCategory('All');
     }
   }, [initialCategory, activeCategories]);
-
 
   // --- NAVIGATIONS ---
   const goBack = () => navigation.goBack();
@@ -145,21 +157,40 @@ const RestaurantViewScreen = () => {
   };
 
   if (!restaurant) {
-  return (
-    <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff'}}>
-      <Text style={{color: 'red', marginBottom: 10}}>Lỗi: Không tìm thấy dữ liệu nhà hàng!</Text>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={{padding: 10, backgroundColor: '#eee', borderRadius: 8}}>
-        <Text>Quay lại</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#fff',
+        }}
+      >
+        <Text style={{ color: 'red', marginBottom: 10 }}>
+          Lỗi: Không tìm thấy dữ liệu nhà hàng!
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ padding: 10, backgroundColor: '#eee', borderRadius: 8 }}
+        >
+          <Text>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
-  let restaurantImage = IMAGES.pizza1;
+  let restaurantImage: any = IMAGES.pizza1;
   if (restaurant.image) {
-      restaurantImage = restaurant.image.startsWith('http') 
-        ? { uri: restaurant.image } 
+    // restaurant.image may be a string (path or url) or already an object like { uri: '...' }
+    if (typeof restaurant.image === 'string') {
+      restaurantImage = restaurant.image.startsWith('http')
+        ? { uri: restaurant.image }
         : { uri: `${BASE_URL}${restaurant.image}` };
+    } else if (typeof restaurant.image === 'object' && restaurant.image.uri) {
+      restaurantImage = restaurant.image;
+    } else {
+      restaurantImage = IMAGES.pizza1;
+    }
   }
 
   return (
@@ -208,32 +239,38 @@ const RestaurantViewScreen = () => {
                 </View>
              </View>
           </View>
-      </View>
-
-      {/* Categories Horizontal List (Chỉ hiện các mục có món) */}
+        </View>
+      {/* Restaurant Info */}
       <View style={styles.categoriesContainer}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={activeCategories} // Dùng list đã lọc
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.keywordButton,
-                    selectedCategory === item && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => setSelectedCategory(item)}
-                >
-                  <Text style={[
-                      styles.keywordText, 
-                      selectedCategory === item && { color: colors.white, fontWeight: 'bold' }
-                  ]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-            )}
-          />
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={activeCategories} // Dùng list đã lọc
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.keywordButton,
+                selectedCategory === item && {
+                  backgroundColor: colors.primary,
+                },
+              ]}
+              onPress={() => setSelectedCategory(item)}
+            >
+              <Text
+                style={[
+                  styles.keywordText,
+                  selectedCategory === item && {
+                    color: colors.white,
+                    fontWeight: 'bold',
+                  },
+                ]}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
       </View>
 
       {/* Foods Grid */}
@@ -278,47 +315,162 @@ const RestaurantViewScreen = () => {
 
       {isFilterVisible && (
         <>
-            <View style={styles.overlay} />
-            <View style={styles.filterContainer}>
-              <Filter onClose={() => setIsFilterVisible(false)} />
-            </View>
+          <View style={styles.overlay} />
+          <View style={styles.filterContainer}>
+            <Filter onClose={() => setIsFilterVisible(false)} />
+          </View>
         </>
       )}
     </View>
   );
-};
+};  
 
 const styles = StyleSheet.create({
   // Giữ nguyên Styles cũ của bạn
-  container: { flex: 1, backgroundColor: '#fff', paddingTop: 40, paddingHorizontal: 20 },
-  headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
-  backButton: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#ECF0F4', alignItems: 'center', justifyContent: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingTop: 40,
+    paddingHorizontal: 20,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  backButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: '#ECF0F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  seeMore: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#ECF0F4', alignItems: 'center', justifyContent: 'center' },
+  seeMore: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: '#ECF0F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   restaurantHeaderWrapper: { marginBottom: 20 },
-  imageContainer: { height: 180, borderRadius: 15, overflow: 'hidden', marginBottom: 15, position: 'relative' },
+  imageContainer: {
+    height: 180,
+    borderRadius: 15,
+    overflow: 'hidden',
+    marginBottom: 15,
+    position: 'relative',
+  },
   imagePlaceholder: { width: '100%', height: '100%' },
-  favoriteButton: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.3)', width: 35, height: 35, borderRadius: 17.5, alignItems: 'center', justifyContent: 'center' },
+  favoriteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   infoBlock: {},
-  restaurantTitle: { fontSize: 22, fontWeight: 'bold', color: '#181C2E', marginBottom: 5 },
-  restaurantDescription: { fontSize: 13, color: '#A0A5BA', marginBottom: 10, lineHeight: 18 },
+  restaurantTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#181C2E',
+    marginBottom: 5,
+  },
+  restaurantDescription: {
+    fontSize: 13,
+    color: '#A0A5BA',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
   restaurantMeta: { flexDirection: 'row', gap: 20 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { fontSize: 13, fontWeight: '600', color: '#181C2E' },
   categoriesContainer: { marginBottom: 20, height: 50 },
-  keywordButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, borderWidth: 1, borderColor: '#EDEDED', marginRight: 10, backgroundColor: '#fff', justifyContent: 'center' },
+  keywordButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#EDEDED',
+    marginRight: 10,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+  },
   keywordText: { color: '#181C2E', fontSize: 14, fontWeight: '500' },
   foodsContainer: { flex: 1 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#32343E' },
-  foodItem: { width: '48%', backgroundColor: '#fff', borderRadius: 15, padding: 10, marginBottom: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 3 },
-  foodImage: { width: '100%', height: 100, borderRadius: 10, marginBottom: 10, backgroundColor: '#f0f0f0' },
-  foodName: { fontSize: 15, fontWeight: 'bold', color: '#32343E', marginBottom: 3 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#32343E',
+  },
+  foodItem: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 10,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  foodImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  foodName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#32343E',
+    marginBottom: 3,
+  },
   foodCat: { fontSize: 12, color: '#A0A5BA', marginBottom: 10 },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   foodPrice: { fontSize: 16, fontWeight: 'bold', color: '#32343E' },
-  addButton: { backgroundColor: colors.primary, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1 },
-  filterContainer: { position: 'absolute', top: '20%', left: 20, right: 20, backgroundColor: '#fff', borderRadius: 20, padding: 20, zIndex: 2, elevation: 5 },
+  addButton: {
+    backgroundColor: colors.primary,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1,
+  },
+  filterContainer: {
+    position: 'absolute',
+    top: '20%',
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    zIndex: 2,
+    elevation: 5,
+  },
 });
 
 export default RestaurantViewScreen;
