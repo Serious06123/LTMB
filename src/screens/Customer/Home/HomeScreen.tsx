@@ -92,7 +92,7 @@ export default function HomeScreen() {
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
   const navigation = useNavigation<any>();
-  const dispatch = useDispatch(); // <--- Khởi tạo dispatch
+  const dispatch = useDispatch();
 
   // Lấy location từ Redux
   const currentLocation = useSelector((state: any) => state.general.currentLocation);
@@ -140,7 +140,6 @@ export default function HomeScreen() {
     };
   });
   console.log('Restaurants loaded:', restError);
-  // console.log('Dữ liệu nhà hàng sau khi xử lý:', JSON.stringify(restaurants, null, 2));
 
   const categories = (catData as GetCategoriesData)?.getCategories || [];
 

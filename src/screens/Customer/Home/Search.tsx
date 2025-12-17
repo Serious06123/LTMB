@@ -20,6 +20,7 @@ import { useState } from 'react';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
+import { BASE_URL } from '../../../constants/config';
 
 interface Food {
   id: string;
@@ -174,15 +175,33 @@ const SearchScreen = () => {
     loading: restLoading,
     error: restError,
   } = useQuery<getRestaurantsData>(GET_RESTAURANTS);
-  const restaurants = (restData?.getRestaurants || []).map((r: any) => ({
-    id: r._id,
-    name: r.name,
-    rating: r.rating ? r.rating : 4.0,
-    image: r.image || IMAGES.pizza1,
-    categories: r.categories,
-    address: r.address,
-    raw: r,
-  }));
+  const restaurants = (restData?.getRestaurants || []).map((r: any) => {
+      // 1. Lấy link gốc từ database
+      const originalImage = r.image; 
+  
+      // 2. Xử lý logic đường dẫn
+      let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+  
+      if (originalImage) {
+        if (originalImage.startsWith('http')) {
+          // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
+          finalUri = { uri: originalImage };
+        } else {
+          // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
+          finalUri = { uri: `${BASE_URL}${originalImage}` };
+        }
+      }
+      return {
+        id: r._id,
+        name: r.name,
+        details: r.categories?.map((c: any) => c.name).join(' - ') || '',
+        rating: r.rating ? String(r.rating) : '4.0',
+        delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+        time: r.deliveryTime || '',
+        image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+        raw: r,
+      };
+    });
   console.log('[Search] fetched foods:', foodsData);
 
   if (foodsError) {
@@ -293,10 +312,10 @@ const SearchScreen = () => {
             justifyContent: 'space-between',
           }}
         >
-          <Text style={styles.sectionTitle}>Popular Fast Food</Text>
+          <Text style={styles.sectionTitle}>Popular Food</Text>
           <TouchableOpacity
             onPress={() => {
-              setSeeAllTitle('Popular Fast Food');
+              setSeeAllTitle('Popular Food');
               // open modal immediately and pass fetched foods
               setSeeAllItems(foods);
               setSeeAllVisible(true);

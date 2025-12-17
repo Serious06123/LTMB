@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Pressable,
+  ActivityIndicator, // Thêm để hiển thị loading
 } from 'react-native';
 import { colors } from '../../../theme';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -18,71 +19,43 @@ import { IMAGES } from '../../../constants/images';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
+
 const FoodScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const { category } = (route.params as { category?: string }) || {};
   const [seeAllVisible, setSeeAllVisible] = useState(false);
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
+
   const goBack = () => {
     navigation.goBack();
   };
   const goToSearch = () => {
     navigation.navigate('Search' as never);
   };
-  const goToFoodDetail = () => {
-    navigation.navigate('FoodDetail' as never);
+  const goToFoodDetail = (foodItem: any) => {
+    // Truyền dữ liệu món ăn sang màn hình chi tiết
+    navigation.navigate('FoodDetail', { food: foodItem });
   };
-  const popularBurgers = [
-    {
-      id: 1,
-      name: 'Burger Bistro',
-      restaurant: 'Rose Garden',
-      price: '$40',
-      image: IMAGES.pizza1,
-    },
-    {
-      id: 2,
-      name: 'Smokin’ Burger',
-      restaurant: 'Cafeteria Restaurant',
-      price: '$60',
-      image: IMAGES.pizza1,
-    },
-    {
-      id: 3,
-      name: 'Buffalo Burgers',
-      restaurant: 'Kaiji Firm Kitchen',
-      price: '$75',
-      image: IMAGES.pizza1,
-    },
-    {
-      id: 4,
-      name: 'Bullseye Burgers',
-      restaurant: 'Kabab Restaurant',
-      price: '$94',
-      image: IMAGES.pizza1,
-    },
-    {
-      id: 5,
-      name: 'Kimmi Burgers',
-      restaurant: 'Kabab Restaurant',
-      price: '$94',
-      image: IMAGES.pizza1,
-    },
-    {
-      id: 6,
-      name: 'Charset Burgers',
-      restaurant: 'Kabab Restaurant',
-      price: '$94',
-      image: IMAGES.pizza1,
-    },
-  ];
 
-  const openRestaurants = [
-    // will be replaced by backend data
-  ];
+  // --- 1. Query lấy danh sách món ăn ---
+  const GET_FOODS = gql`
+    query GetFoods($category: String) {
+      getFoods(category: $category) {
+        id
+        name
+        price
+        description
+        image
+        rating
+        # Lưu ý: Backend hiện tại chưa trả về tên Restaurant trong query getFoods
+        # nên tạm thời chúng ta sẽ để trống hoặc ẩn đi.
+      }
+    }
+  `;
 
+  // --- 2. Query lấy danh sách nhà hàng (Giữ nguyên của bạn) ---
   const GET_RESTAURANTS = gql`
     query GetRestaurants($category: String) {
       getRestaurants(category: $category) {
@@ -107,17 +80,74 @@ const FoodScreen = () => {
       }
     }
   `;
+  interface Food {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  rating: number;
+  description?: string;
+}
 
-  const { data: restData } = useQuery(GET_RESTAURANTS);
+interface GetFoodsData {
+  getFoods: Food[];
+}
+
+interface Restaurant {
+  _id: string;
+  name: string;
+  rating: number;
+  reviews?: number;
+  image?: string;
+  deliveryTime?: number;
+  deliveryFee?: number;
+  isOpen?: boolean;
+  categories: Array<{ _id: string; name: string }>;
+  address: {
+    street: string;
+    city: string;
+    lat: number;
+    lng: number;
+  };
+}
+
+interface GetRestaurantsData {
+  getRestaurants: Restaurant[];
+}
+
+  // --- 3. Thực thi Query ---
+  const { data: foodData, loading: foodLoading } = useQuery<GetFoodsData>(GET_FOODS, {
+    variables: { category: category || 'All' },
+    fetchPolicy: 'cache-and-network', // Đảm bảo luôn lấy dữ liệu mới nhất
+  });
+
+  const { data: restData } = useQuery<GetRestaurantsData>(GET_RESTAURANTS, {
+    variables: { category: category || 'All' },
+  });
+
+  // --- 4. Xử lý dữ liệu Món ăn (Foods) ---
+  const foodsFromDB = (foodData?.getFoods || []).map((item: any) => ({
+    id: item.id,
+    name: item.name,
+    // Backend chưa populate restaurant nên tạm thời để chuỗi rỗng hoặc tên mặc định
+    restaurant: '',
+    price: `$${item.price}`,
+    // Kiểm tra nếu có link ảnh online thì dùng uri, không thì dùng ảnh mặc định local
+    image: item.image ? { uri: item.image } : IMAGES.pizza1,
+    description: item.description,
+    raw: item, // Giữ lại dữ liệu gốc nếu cần
+  }));
+
+  // --- 5. Xử lý dữ liệu Nhà hàng (Restaurants) ---
   const openRestaurantsData = (restData?.getRestaurants || []).map(
     (r: any, idx: number) => ({
-      id: idx + 1,
+      id: r._id || idx + 1,
       name: r.name,
-      image: r.image || IMAGES.pizza1,
+      image: r.image ? { uri: r.image } : IMAGES.pizza1,
       rating: r.rating ? String(r.rating) : '4.5',
       delivery:
         r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
-      time: r.deliveryTime || '',
+      time: r.deliveryTime || '30 min',
       raw: r,
     }),
   );
@@ -131,7 +161,7 @@ const FoodScreen = () => {
         </TouchableOpacity>
 
         <View style={styles.keywordButton}>
-          <Text style={styles.keywordText}>{category || 'Burger'}</Text>
+          <Text style={styles.keywordText}>{category || 'All'}</Text>
           <FontAwesome name="caret-down" color={colors.primary} size={24} />
         </View>
         <View
@@ -158,41 +188,59 @@ const FoodScreen = () => {
         </View>
       </View>
 
-      {/* Popular Burgers */}
+      {/* --- Section: Popular Foods (Lấy từ DB) --- */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Popular Burgers</Text>
-        <FlatList
-          showsVerticalScrollIndicator={false}
-          data={popularBurgers}
-          keyExtractor={item => item.id.toString()}
-          numColumns={2}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Image source={item.image} style={styles.imagePlaceholder} />
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardSubtitle}>{item.restaurant}</Text>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  width: '100%',
-                }}
-              >
-                <Text style={styles.cardPrice}>{item.price}</Text>
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={goToFoodDetail}
+        <Text style={styles.sectionTitle}>
+          {category ? `${category} Menu` : 'Popular Foods'}
+        </Text>
+
+        {foodLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} />
+        ) : (
+          <FlatList
+            showsVerticalScrollIndicator={false}
+            data={foodsFromDB} // Sử dụng dữ liệu đã map từ DB
+            keyExtractor={item => item.id.toString()}
+            numColumns={2}
+            columnWrapperStyle={{ justifyContent: 'space-between' }} // Căn đều 2 cột
+            ListEmptyComponent={
+              <Text style={{ textAlign: 'center', marginTop: 20, color: colors.gray }}>
+                No foods found.
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <Image source={item.image} style={styles.imagePlaceholder} />
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+                {/* Tạm ẩn subtitle nếu không có tên nhà hàng */}
+                {item.restaurant ? (
+                  <Text style={styles.cardSubtitle}>{item.restaurant}</Text>
+                ) : null}
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                    marginTop: 5,
+                  }}
                 >
-                  <Text style={styles.addButtonText}>+</Text>
-                </TouchableOpacity>
+                  <Text style={styles.cardPrice}>{item.price}</Text>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => goToFoodDetail(item.raw)}
+                  >
+                    <Text style={styles.addButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-        />
+            )}
+          />
+        )}
       </View>
 
-      {/* Open Restaurants */}
+      {/* --- Section: Open Restaurants (Lấy từ DB) --- */}
       <View style={[styles.sectionContainer, { flex: 3 }]}>
         <View
           style={{
@@ -205,7 +253,7 @@ const FoodScreen = () => {
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Open Restaurants');
-              setSeeAllItems(openRestaurants);
+              setSeeAllItems(openRestaurantsData); // Cập nhật dữ liệu cho Modal
               setSeeAllVisible(true);
             }}
           >
@@ -259,7 +307,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     paddingTop: 40,
     paddingLeft: 20,
-    paddingRight: 30,
+    paddingRight: 20, // Chỉnh lại paddingRight cho cân đối
   },
   pressButton: {
     marginRight: 15,
@@ -270,59 +318,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#ECF0F4',
   },
-  headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  filterButton: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  filterText: {
-    color: colors.black,
-    fontWeight: 'bold',
-  },
-  searchButton: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  searchIcon: {
-    fontSize: 16,
-    color: colors.black,
-  },
-  sortButton: {
-    backgroundColor: '#676767',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  sortIcon: {
-    fontSize: 16,
-    color: colors.black,
-  },
   sectionContainer: {
     flex: 7,
     marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 20,
-    // fontWeight: 'bold',
     color: colors.black,
     marginBottom: 10,
+    fontWeight: '600',
   },
   card: {
-    flex: 1,
+    flex: 0.5, // Để chia đều 2 cột
     backgroundColor: '#fff',
     borderRadius: 15,
-    padding: 8,
-    margin: 8,
-    elevation: 5,
+    padding: 10,
+    margin: 5,
+    elevation: 4, // Đổ bóng cho Android
+    shadowColor: '#000', // Đổ bóng cho iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   imagePlaceholder: {
     width: '100%',
@@ -330,64 +346,60 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray,
     borderRadius: 10,
     marginBottom: 10,
+    resizeMode: 'cover',
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: colors.black,
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.gray,
+    marginBottom: 4,
   },
   cardPrice: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
-    // marginTop: 10,
   },
   addButton: {
     backgroundColor: colors.primary,
     borderRadius: 50,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 2,
-    marginTop: 10,
   },
   addButtonText: {
     color: colors.white,
     fontWeight: 'bold',
-    fontSize: 20,
+    fontSize: 18,
   },
   restaurantCard: {
     width: '100%',
     borderRadius: 11,
     marginBottom: 20,
-    // alignItems: 'center',
-    // marginRight: 20,
-    // marginLeft: 15,
   },
   restaurantImage: {
-    width: 360,
+    width: '100%',
     height: 140,
     borderRadius: 10,
     marginBottom: 10,
+    resizeMode: 'cover',
   },
   restaurantName: {
-    fontSize: 20,
+    fontSize: 18,
+    fontWeight: 'bold',
     color: colors.black,
   },
   foodSearchInfo: {
-    // flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 25,
   },
-
   keywordButton: {
-    // backgroundColor: colors.lightGray,
     flexDirection: 'row',
     gap: 10,
-    width: 102,
+    paddingHorizontal: 15,
     height: 46,
     borderWidth: 2,
     borderColor: '#EDEDED',
@@ -398,14 +410,13 @@ const styles = StyleSheet.create({
   },
   keywordText: {
     color: colors.black,
+    fontWeight: '500',
   },
   restaurantMeta: {
     flexDirection: 'row',
     gap: 16,
     alignItems: 'center',
-    marginTop: 8,
-    fontSize: 12,
-    color: '#888',
+    marginTop: 5,
   },
   restaurantMetaDetails: {
     flexDirection: 'row',
