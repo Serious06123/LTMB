@@ -1,6 +1,6 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import generalState from '../features/general/generalSlice';
+import generalSlice from '../features/general/generalSlice'; // Đặt tên biến import là gì cũng được
 
 export default combineReducers({
-  generalState,   // thêm reducer vào đây (tên key = tên state nhánh)
+  general: generalSlice,   // <--- QUAN TRỌNG: Phải đặt key là 'general'
 });

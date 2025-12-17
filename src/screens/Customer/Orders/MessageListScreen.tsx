@@ -26,7 +26,7 @@ export default function MessageListScreen() {
   const backendRoot = GOONG_CONFIG.BASE_URL.replace(/\/api\/?$/, '');
   const rawToken = getToken();
   const token = rawToken === null ? undefined : rawToken;
-  const currentUser = Store.getState()?.generalState?.user as any;
+  const currentUser = Store.getState()?.general?.user as any;
   const currentUserId = currentUser?._id || currentUser?.id;
 
   useEffect(() => {

@@ -3,17 +3,68 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons'; // Import icon
 import { colors } from '../../theme'; //
+import { useQuery } from '@apollo/client/react';
+import { gql } from '@apollo/client';
 
-// ... (Giữ nguyên phần mockHistory)
-const mockHistory = [
-  { id: 'DH001', date: '15/12/2023 10:30', restaurant: 'Pizza Hut', address: '123 Đường A, Quận 1', total: '50.000đ', status: 'completed' },
-  { id: 'DH002', date: '14/12/2023 18:45', restaurant: 'Gà Rán KFC', address: '456 Đường B, Quận 3', total: '120.000đ', status: 'completed' },
-  { id: 'DH003', date: '14/12/2023 12:00', restaurant: 'Cơm Tấm Cali', address: '789 Đường C, Quận 5', total: '45.000đ', status: 'cancelled' },
-];
+const GET_HISTORY_ORDERS = gql`
+  query GetHistoryOrders {
+    myShippingOrders {
+      id
+      createdAt
+      totalAmount
+      status
+      restaurantUser{name}
+      shippingAddress {street city}
+    }
+  }
+`;
 
 export default function ShipperHistoryScreen() {
+  const { data, loading, error } = useQuery(GET_HISTORY_ORDERS, { fetchPolicy: 'network-only' });
+  const orders = (data && Array.isArray((data as any).myShippingOrders))
+    ? (data as any).myShippingOrders.map((order: any) => ({
+        id: order.id,
+        date: order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : '',
+        restaurant: order.restaurantUser?.name || '',
+        customerAddress: order.shippingAddress ? `${order.shippingAddress.street}, ${order.shippingAddress.city}` : '',
+        total: order.totalAmount ? `${order.totalAmount.toLocaleString('vi-VN')}đ` : '',
+        status: order.status,
+      }))
+    : [];
+
   const renderItem = ({ item }: any) => {
-    const isCompleted = item.status === 'completed';
+    // Xác định style và text cho từng trạng thái
+    let statusText = '';
+    let statusColor = '';
+    let statusBg = '';
+    let statusIcon = '';
+    switch (item.status) {
+      case 'completed':
+        statusText = 'Hoàn thành';
+        statusColor = 'green';
+        statusBg = '#E8F5E9';
+        statusIcon = 'checkmark-circle';
+        break;
+      case 'delivered':
+        statusText = 'Đã giao';
+        statusColor = '#1976D2';
+        statusBg = '#E3F2FD';
+        statusIcon = 'cube-outline';
+        break;
+      case 'shipping':
+        statusText = 'Đang giao';
+        statusColor = '#F9A825';
+        statusBg = '#FFF8E1';
+        statusIcon = 'bicycle-outline';
+        break;
+      case 'cancelled':
+      default:
+        statusText = 'Đã hủy';
+        statusColor = 'red';
+        statusBg = '#FFEBEE';
+        statusIcon = 'close-circle';
+        break;
+    }
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -23,29 +74,26 @@ export default function ShipperHistoryScreen() {
              <Text style={styles.date}>{item.date}</Text>
           </View>
         </View>
-        
         <View style={styles.divider} />
-        
         <View style={styles.infoRow}>
             <Ionicons name="storefront-outline" size={16} color={colors.secondary} style={{marginRight: 8}} />
             <Text style={styles.restaurantName}>{item.restaurant}</Text>
         </View>
         <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={16} color={colors.gray} style={{marginRight: 8}} />
-            <Text style={styles.address}>Giao đến: {item.address}</Text>
+            <Text style={styles.address}>Giao đến: {item.customerAddress}</Text>
         </View>
-        
         <View style={styles.cardFooter}>
           <Text style={styles.price}>{item.total}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: isCompleted ? '#E8F5E9' : '#FFEBEE' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: statusBg }]}> 
             <Ionicons 
-                name={isCompleted ? "checkmark-circle" : "close-circle"} 
+                name={statusIcon} 
                 size={16} 
-                color={isCompleted ? 'green' : 'red'} 
+                color={statusColor} 
                 style={{marginRight: 4}}
             />
-            <Text style={[styles.statusText, { color: isCompleted ? 'green' : 'red' }]}>
-              {isCompleted ? 'Hoàn thành' : 'Đã hủy'}
+            <Text style={[styles.statusText, { color: statusColor }]}> 
+              {statusText}
             </Text>
           </View>
         </View>
@@ -58,13 +106,19 @@ export default function ShipperHistoryScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Lịch sử hoạt động</Text>
       </View>
-      <FlatList
-        data={mockHistory}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <Text style={{ textAlign: 'center', marginTop: 30 }}>Đang tải...</Text>
+      ) : error ? (
+        <Text style={{ textAlign: 'center', marginTop: 30, color: 'red' }}>Lỗi tải dữ liệu: {error.message}</Text>
+      ) : (
+        <FlatList
+          data={orders}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 }
@@ -76,7 +130,7 @@ const styles = StyleSheet.create({
   listContent: { padding: 15 },
   card: { backgroundColor: colors.white, borderRadius: 12, padding: 15, marginBottom: 15, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  orderId: { fontWeight: 'bold', color: colors.black, fontSize: 16 },
+  orderId: { fontWeight: 'bold', color: colors.black, fontSize: 14 },
   dateRow: { flexDirection: 'row', alignItems: 'center' },
   date: { color: colors.gray, fontSize: 13 },
   divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 10 },

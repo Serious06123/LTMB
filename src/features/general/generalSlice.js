@@ -3,50 +3,53 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   isLoggedIn: false,
   token: null,
+  userId: null,
   user: null,
   isLoading: false,
+  // Thêm lại currentLocation
+  currentLocation: {
+    address: null,
+    coords: { lat: null, lng: null }
+  }
 };
 
 const generalSlice = createSlice({
   name: 'general',
   initialState,
   reducers: {
-    // Action để lưu Token (Sửa lỗi chưa có setToken)
     setToken: (state, action) => {
       state.token = action.payload;
-      state.isLoggedIn = !!action.payload; // Nếu có token -> isLoggedIn = true
+      state.isLoggedIn = !!action.payload;
     },
-    
-    // Action để lưu User
+    setUserId: (state, action) => {
+      state.userId = action.payload;
+    },
     setUser: (state, action) => {
       state.user = action.payload;
     },
-
-    // Action đăng nhập (Lưu cả token và user cùng lúc)
     setLogin: (state, action) => {
       state.token = action.payload.token;
       state.user = action.payload.user;
+      state.userId = action.payload.user?.id; // Lưu luôn ID khi login
       state.isLoggedIn = true;
     },
-
-    // Action đăng xuất
     logout: (state) => {
       state.token = null;
       state.user = null;
+      state.userId = null;
       state.isLoggedIn = false;
+      state.currentLocation = { address: null, coords: { lat: null, lng: null } };
     },
-
     setLoading: (state, action) => {
       state.isLoading = action.payload;
     },
+    // Thêm lại reducer setLocation
     setLocation: (state, action) => {
       state.currentLocation = action.payload;
     },
   },
 });
 
-// Xuất các actions ra để các màn hình khác dùng
-export const { setToken, setUser, setLogin, logout, setLoading, setLocation } = generalSlice.actions;
+export const { setToken, setUserId, setUser, setLogin, logout, setLoading, setLocation } = generalSlice.actions;
 
-// Xuất reducer để store dùng
 export default generalSlice.reducer;

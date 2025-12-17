@@ -6,6 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  Platform,        // <--- Mới
+  PermissionsAndroid, // <--- Mới
+  Alert            // <--- Mới
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -13,7 +16,8 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
-import { useNavigation, useRoute } from '@react-navigation/native'; // <--- Đã thêm useRoute
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSelector, useDispatch } from 'react-redux'; // <--- Thêm useDispatch
 import DiscountPopup from '../../../components/DiscountPopup';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
@@ -85,11 +89,13 @@ export default function HomeScreen() {
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
   const navigation = useNavigation<any>();
+  const dispatch = useDispatch(); // <--- Khởi tạo dispatch
 
-  // <--- Code mới thêm
+  // Lấy location từ Redux
+  const currentLocation = useSelector((state: any) => state.general.currentLocation);
+  const displayAddress = currentLocation?.address || 'Đang tải vị trí...';
+  
   const route = useRoute();
-  const { address } = (route.params || {}) as { address?: string };
-  // ------------------
 
   const {
     data: catData,
@@ -137,13 +143,76 @@ export default function HomeScreen() {
     navigation.navigate('Search' as never);
   };
 
+  // --- LOGIC LẤY VỊ TRÍ (Được copy và chỉnh sửa từ LocationAccess) ---
+  const requestLocationPermission = async () => {
+    if (Platform.OS === 'ios') {
+      const auth = await Geolocation.requestAuthorization('whenInUse');
+      return auth === 'granted';
+    }
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: "Location Permission",
+            message: "App needs access to your location.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK"
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const fetchCurrentLocation = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) return;
+
+    Geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const data = await mapService.getReverseGeocoding(latitude, longitude);
+          if (data && data.results && data.results.length > 0) {
+            const currentAddress = data.results[0].formatted_address;
+            // Lưu vào Redux để hiển thị
+            dispatch(setLocation({
+                address: currentAddress,
+                coords: { latitude, longitude }
+            }));
+          }
+        } catch (error) {
+          console.error("API Error:", error);
+        }
+      },
+      (error) => {
+        console.log("GPS Error:", error.code, error.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  };
+  // ------------------------------------------------------------------
+
+  // Effect hiển thị popup giảm giá
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowDiscount(true);
     }, 5000);
-
     return () => clearTimeout(timer);
   }, []);
+
+  // Effect kiểm tra vị trí: Nếu chưa có address thì tự động lấy lại
+  useEffect(() => {
+    if (!currentLocation?.address) {
+      fetchCurrentLocation();
+    }
+  }, [currentLocation]); // Chạy lại khi currentLocation thay đổi (hoặc khởi tạo)
 
   return (
     <View style={styles.container}>
@@ -157,12 +226,10 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'column' }}>
               <Text style={styles.deliveryText}>DELIVER TO</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {/* <--- Code mới sửa: Hiển thị địa chỉ động */}
-                <Text
-                  numberOfLines={1}
-                  style={{ maxWidth: 200, fontWeight: 'bold' }}
-                >
-                  {address || 'Current Location'}
+                
+                {/* Hiển thị địa chỉ */}
+                <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
+                    {displayAddress}
                 </Text>
 
                 <AntDesign
@@ -180,6 +247,8 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           </View>
+          
+          {/* ... Phần còn lại giữ nguyên ... */}
           <Text style={styles.greetingText}>
             Hey Halal,{' '}
             <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text>
@@ -189,7 +258,8 @@ export default function HomeScreen() {
             <Text> Search dishes, restaurants</Text>
           </TouchableOpacity>
         </View>
-        {/* Categories Section */}
+
+        {/* ... Categories Section giữ nguyên ... */}
         <View style={styles.categoriesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>All Categories</Text>
@@ -226,9 +296,11 @@ export default function HomeScreen() {
           />
         </View>
       </View>
+      
+      {/* ... Restaurants Section giữ nguyên ... */}
       <View style={{ flex: 1 }}>
-        {/* Open Restaurants Section */}
-        <View style={styles.restaurantsSection}>
+         {/* Nội dung Restaurants giữ nguyên như cũ */}
+         <View style={styles.restaurantsSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Open Restaurants</Text>
             <TouchableOpacity
@@ -257,19 +329,11 @@ export default function HomeScreen() {
                   <Text style={styles.restaurantDetails}>{item.details}</Text>
                   <View style={styles.restaurantMeta}>
                     <View style={styles.restaurantMetaDetails}>
-                      <AntDesign
-                        name="staro"
-                        color={colors.primary}
-                        size={20}
-                      />
+                      <AntDesign name="staro" color={colors.primary} size={20} />
                       <Text>{item.rating}</Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>
-                      <MaterialCommunityIcons
-                        name="truck-fast-outline"
-                        color={colors.primary}
-                        size={20}
-                      />
+                      <MaterialCommunityIcons name="truck-fast-outline" color={colors.primary} size={20} />
                       <Text>{item.delivery}</Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>
@@ -294,7 +358,7 @@ export default function HomeScreen() {
   );
 }
 
-// ... styles giữ nguyên ...
+// ... styles giữ nguyên không thay đổi ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -325,8 +389,6 @@ const styles = StyleSheet.create({
   },
   deliveryLocation: {
     fontSize: 14,
-    // fontWeight: 'bold',
-    // marginLeft: 4,
   },
   cartButton: {
     backgroundColor: '#181C2E',
@@ -352,7 +414,6 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     fontSize: 18,
-    // fontWeight: 'bold',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -379,7 +440,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     color: '#32343E',
-    // fontWeight: 'bold',
   },
   seeAllText: {
     fontSize: 14,
@@ -435,8 +495,6 @@ const styles = StyleSheet.create({
   restaurantInfo: {
     marginTop: 12,
     marginBottom: 8,
-    // flex: 1,
-    // justifyContent: 'center',
   },
   restaurantName: {
     fontSize: 20,

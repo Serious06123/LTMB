@@ -29,14 +29,14 @@ import MessageListScreen from '../screens//Customer/Orders/MessageListScreen'; /
 import ChatScreen from '../screens//Customer/Orders/ChatScreen';
 import ChangePasswordAuth from '../screens/Auth/ChangePasswordAuth';
 import ShipperTabs from './ShipperTabs';
-
+import EditProfileScreen from '../screens/Restaurant/EditProfileScreen';
 const Stack = createNativeStackNavigator();
 
 export default function Navigators() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="CustomerTabs"
+        initialRouteName="LocationAccess"
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Intro" component={IntroScreen} />
@@ -68,6 +68,7 @@ export default function Navigators() {
         <Stack.Screen name="ReviewsScreen" component={ReviewsScreen} />
         <Stack.Screen name="ChangePasswordAuth" component={ChangePasswordAuth} />
         <Stack.Screen name="ShipperTabs" component={ShipperTabs} />
+        <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

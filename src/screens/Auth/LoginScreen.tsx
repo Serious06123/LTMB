@@ -18,13 +18,12 @@ import {
 
 // Redux imports
 import { useDispatch } from 'react-redux';
-import { setToken } from '../../features/general/generalSlice'; // <-- Đảm bảo import đúng
+import { setToken, setUserId } from '../../features/general/generalSlice'; // <-- Thêm setUserId nếu cần
 import { colors } from '../../theme';
 
 // Apollo
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
-import ForgotPassword from './ForgotPassword';
 import PrimaryButton from '../../components/button/PrimaryButton';
 
 // --- CẤU HÌNH ---
@@ -35,30 +34,42 @@ const GOOGLE_WEB_CLIENT_ID =
 // URL Backend (Lưu ý: Nếu test trên điện thoại thật, thay 10.0.2.2 bằng IP LAN của máy tính, vd: 192.168.1.5)
 const BACKEND_URL = 'http://10.0.2.2:4000/api/auth/google';
 
+// 1. SỬA LOGIN_MUTATION: Dùng identifier và lấy token/user thay vì success/error
 const LOGIN_MUTATION = gql`
   mutation Login($identifier: String!, $password: String!) {
     login(identifier: $identifier, password: $password) {
       success
       token
-      error
+      user {
+        id
+        name
+        email
+        role
+      }
     }
   }
 `;
 
+// 2. CẬP NHẬT INTERFACE RESPONSE
 interface LoginResponse {
   login: {
-    success: boolean;
     token: string;
-    error?: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+    };
   };
 }
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState<string>('123@gmail.com');
-  const [password, setPassword] = useState<string>('123');
+  // Đổi tên state thành identifier cho đúng ý nghĩa (Email hoặc Phone)
+  const [identifier, setIdentifier] = useState<string>(''); 
+  const [password, setPassword] = useState<string>('');
   const [secure, setSecure] = useState<boolean>(true);
   const [remember, setRemember] = useState<boolean>(false);
-  const [loadingGoogle, setLoadingGoogle] = useState(false); // Thêm loading riêng cho Google
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
 
   const [login, { loading, error }] =
     useMutation<LoginResponse>(LOGIN_MUTATION);
@@ -72,6 +83,7 @@ export default function LoginScreen() {
     });
   }, []);
 
+  // Xử lý đăng nhập Google (Giữ nguyên)
   const handleGoogleLogin = async () => {
     setLoadingGoogle(true);
     try {
@@ -127,43 +139,59 @@ export default function LoginScreen() {
     } catch (error: any) {
       setLoadingGoogle(false);
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // User hủy, không làm gì cả
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         Alert.alert('Lỗi', 'Google Play Services không khả dụng.');
       } else {
-        console.error('Google Login Error:', error);
-        Alert.alert('Lỗi', 'Đăng nhập Google thất bại. Vui lòng thử lại.');
+        Alert.alert('Lỗi', 'Đăng nhập Google thất bại.');
       }
     }
   };
 
+  // 3. SỬA HÀM XỬ LÝ ĐĂNG NHẬP THƯỜNG
   const handleLoginPress = async () => {
     if (loading) return;
+    if (!identifier || !password) {
+        Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ thông tin');
+        return;
+    }
+
     try {
+      // Gọi mutation với biến identifier
       const { data } = await login({
-        variables: { identifier: email, password },
+        variables: { 
+            identifier: identifier, // Truyền giá trị vào identifier
+            password: password 
+        },
       });
 
-      if (!data || !data.login) {
-        Alert.alert('Lỗi', 'Không nhận được phản hồi.');
-        return;
-      }
-      const result = data.login;
+      if (data && data.login) {
+        const { token, user } = data.login;
 
-      if (result.success) {
+        // Đăng nhập thành công
         try {
-          await AsyncStorage.setItem('userToken', result.token);
-          dispatch(setToken(result.token));
-          navigation.navigate('CustomerTabs' as never);
+          await AsyncStorage.setItem('userToken', token);
+          await AsyncStorage.setItem('user', JSON.stringify(user));
+          
+          dispatch(setToken(token));
+          // Nếu có action setUserId thì dùng: dispatch(setUserId(user.id));
+          dispatch(setUserId(user.id));
+          if ( user.role == 'customer' ){
+            navigation.navigate('CustomerTabs' as never); 
+          }
+          else if ( user.role == 'restaurant' ){
+            navigation.navigate('RestaurantTabs' as never); 
+          }
+          else if ( user.role == 'shipper' ){
+            navigation.navigate('ShipperTabs' as never);
+          }
         } catch (e) {
-          console.error('Lỗi lưu token:', e);
+          console.error('Lỗi lưu storage:', e);
         }
-      } else {
-        Alert.alert('Thất bại', result.error || 'Lỗi không xác định');
-      }
-    } catch (e) {
+      } 
+    } catch (e: any) {
       console.error('Lỗi Mutation:', e);
-      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
+      // Hiển thị lỗi từ Backend (ví dụ: Sai mật khẩu, chưa xác thực OTP...)
+      Alert.alert('Đăng nhập thất bại', e.message || 'Lỗi kết nối máy chủ');
     }
   };
 
@@ -182,15 +210,15 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>EMAIL</Text>
+          {/* Cập nhật Label để user biết có thể nhập SĐT */}
+          <Text style={styles.label}>EMAIL HOẶC SỐ ĐIỆN THOẠI</Text>
           <View style={styles.inputWrap}>
             <TextInput
-              placeholder="example@gmail.com"
+              placeholder="example@gmail.com hoặc 09..."
               placeholderTextColor="#A8B0BF"
-              value={email}
-              onChangeText={setEmail}
+              value={identifier}
+              onChangeText={setIdentifier} // Cập nhật biến identifier
               style={styles.input}
-              keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
