@@ -72,6 +72,9 @@ const SearchScreen = () => {
   const [seeAllVisible, setSeeAllVisible] = useState(false);
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
+  const [type, setType] = useState<'restaurant' | 'food' | 'category'>(
+    'restaurant',
+  );
   const goToCart = () => {
     navigation.navigate('Cart');
   };
@@ -266,6 +269,7 @@ const SearchScreen = () => {
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Suggested Restaurants');
+              setType('restaurant');
               setSeeAllItems(restaurants);
               setSeeAllVisible(true);
             }}
@@ -277,19 +281,23 @@ const SearchScreen = () => {
           data={filteredRestaurants}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}>
-            <View style={styles.restaurantItem}>
-              <Image source={item.image} style={styles.restaurantImage} />
-              <View style={styles.restaurantInfo}>
-                <Text style={styles.restaurantName}>{item.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <AntDesign name="staro" color={colors.primary} size={15} />
-                  <Text style={styles.restaurantRating}>
-                    {String(item.rating)}
-                  </Text>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('RestaurantView', { restaurant: item.raw })
+              }
+            >
+              <View style={styles.restaurantItem}>
+                <Image source={item.image} style={styles.restaurantImage} />
+                <View style={styles.restaurantInfo}>
+                  <Text style={styles.restaurantName}>{item.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <AntDesign name="staro" color={colors.primary} size={15} />
+                    <Text style={styles.restaurantRating}>
+                      {String(item.rating)}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
             </TouchableOpacity>
           )}
           showsVerticalScrollIndicator={false}
@@ -310,6 +318,7 @@ const SearchScreen = () => {
             onPress={() => {
               setSeeAllTitle('Popular Food');
               // open modal immediately and pass fetched foods
+              setType('food');
               setSeeAllItems(foods);
               setSeeAllVisible(true);
             }}
@@ -324,24 +333,26 @@ const SearchScreen = () => {
           data={filteredFoods.slice(0, 10)}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigation.navigate('FoodDetail', { food: item })}>
-            <View style={styles.foodItem}>
-              <Image
-                source={
-                  typeof item.image === 'string'
-                    ? { uri: item.image }
-                    : item.image
-                }
-                style={styles.foodImage}
-              />
-              <Text style={styles.foodName}>{item.name}</Text>
-              <Text style={{ color: '#646982', fontSize: 13 }}>
-                {
-                  // item.restaurant ||
-                  item.category || ''
-                }
-              </Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('FoodDetail', { food: item })}
+            >
+              <View style={styles.foodItem}>
+                <Image
+                  source={
+                    typeof item.image === 'string'
+                      ? { uri: item.image }
+                      : item.image
+                  }
+                  style={styles.foodImage}
+                />
+                <Text style={styles.foodName}>{item.name}</Text>
+                <Text style={{ color: '#646982', fontSize: 13 }}>
+                  {
+                    // item.restaurant ||
+                    item.category || ''
+                  }
+                </Text>
+              </View>
             </TouchableOpacity>
           )}
         />
@@ -350,6 +361,7 @@ const SearchScreen = () => {
         visible={seeAllVisible}
         title={seeAllTitle}
         items={seeAllItems}
+        itemType={type}
         onClose={() => setSeeAllVisible(false)}
       />
     </View>
