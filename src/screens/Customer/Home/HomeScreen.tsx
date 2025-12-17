@@ -6,9 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  Platform,        // <--- Mới
-  PermissionsAndroid, // <--- Mới
-  Alert            // <--- Mới
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,7 +16,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSelector, useDispatch } from 'react-redux'; // <--- Thêm useDispatch
+import { useSelector, useDispatch } from 'react-redux';
 import DiscountPopup from '../../../components/DiscountPopup';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
@@ -26,7 +25,9 @@ import Geolocation from 'react-native-geolocation-service';
 import mapService from '../../../services/mapService';
 import { setLocation } from '../../../features/general/generalSlice';
 import { BASE_URL } from '../../../constants/config';
-// Categories will be loaded from backend via GraphQL
+
+// --- GRAPHQL QUERIES ---
+
 const GET_CATEGORIES = gql`
   query GetCategories {
     getCategories {
@@ -37,7 +38,24 @@ const GET_CATEGORIES = gql`
   }
 `;
 
-// GraphQL: fetch restaurants
+// 1. Query lấy thông tin User (Bắt buộc phải truyền $id)
+const GET_USERS = gql`
+  query getUserProfile($id: ID!) {
+    getUserProfile(id: $id) {
+      _id
+      name
+    }
+  }
+`;
+
+// 2. Định nghĩa lại Interface cho đúng cấu trúc trả về
+interface UserProfileData {
+  getUserProfile: {
+    _id: string;
+    name: string;
+  };
+}
+
 const GET_RESTAURANTS = gql`
   query GetRestaurants($category: String) {
     getRestaurants(category: $category) {
@@ -80,10 +98,10 @@ interface Restaurant {
   rating: string;
   delivery: string;
   time: string;
-  image: string ;
+  image: string | { uri: string };
 }
 interface GetRestaurantsData {
-  getRestaurants: Restaurant[];
+  getRestaurants: any[];
 }
 
 export default function HomeScreen() {
@@ -94,37 +112,40 @@ export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
 
-  // Lấy location từ Redux
-  const currentLocation = useSelector((state: any) => state.general.currentLocation);
+  // 3. Lấy userId và Location từ Redux
+  const { userId, currentLocation } = useSelector((state: any) => state.general);
   const displayAddress = currentLocation?.address || 'Đang tải vị trí...';
   
-  const route = useRoute();
+  // 4. Gọi API lấy thông tin User (Chỉ chạy khi có userId)
+  const {
+    data: userData,
+    loading: userLoading,
+  } = useQuery<UserProfileData>(GET_USERS, {
+    variables: { id: userId },
+    skip: !userId, // Bỏ qua nếu chưa có userId (tránh lỗi)
+  });
+
+  // Lấy tên người dùng, nếu chưa tải xong thì hiện "Loading..."
+  const userName = userData?.getUserProfile?.name || 'Customer';
 
   const {
     data: catData,
-    loading: catLoading,
-    error: catError,
   } = useQuery(GET_CATEGORIES);
 
   const {
     data: restData,
-    loading: restLoading,
     error: restError,
   } = useQuery<GetRestaurantsData>(GET_RESTAURANTS);
 
+  // Xử lý dữ liệu nhà hàng
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
-    // 1. Lấy link gốc từ database
     const originalImage = r.image; 
-
-    // 2. Xử lý logic đường dẫn
-    let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+    let finalUri = IMAGES.pizza1;
 
     if (originalImage) {
       if (originalImage.startsWith('http')) {
-        // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
         finalUri = { uri: originalImage };
       } else {
-        // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
         finalUri = { uri: `${BASE_URL}${originalImage}` };
       }
     }
@@ -135,11 +156,10 @@ export default function HomeScreen() {
       rating: r.rating ? String(r.rating) : '4.0',
       delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
       time: r.deliveryTime || '',
-      image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+      image: finalUri,
       raw: r,
     };
   });
-  console.log('Restaurants loaded:', restError);
 
   const categories = (catData as GetCategoriesData)?.getCategories || [];
 
@@ -151,7 +171,7 @@ export default function HomeScreen() {
     navigation.navigate('Search' as never);
   };
 
-  // --- LOGIC LẤY VỊ TRÍ (Được copy và chỉnh sửa từ LocationAccess) ---
+  // --- LOGIC LẤY VỊ TRÍ ---
   const requestLocationPermission = async () => {
     if (Platform.OS === 'ios') {
       const auth = await Geolocation.requestAuthorization('whenInUse');
@@ -189,10 +209,9 @@ export default function HomeScreen() {
           const data = await mapService.getReverseGeocoding(latitude, longitude);
           if (data && data.results && data.results.length > 0) {
             const currentAddress = data.results[0].formatted_address;
-            // Lưu vào Redux để hiển thị
             dispatch(setLocation({
                 address: currentAddress,
-                coords: { latitude, longitude }
+                coords: { lat: latitude, lng: longitude } // Lưu ý: key khớp với slice (lat/lng)
             }));
           }
         } catch (error) {
@@ -207,7 +226,6 @@ export default function HomeScreen() {
   };
   // ------------------------------------------------------------------
 
-  // Effect hiển thị popup giảm giá
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowDiscount(true);
@@ -215,12 +233,11 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Effect kiểm tra vị trí: Nếu chưa có address thì tự động lấy lại
   useEffect(() => {
     if (!currentLocation?.address) {
       fetchCurrentLocation();
     }
-  }, [currentLocation]); // Chạy lại khi currentLocation thay đổi (hoặc khởi tạo)
+  }, [currentLocation]); 
 
   return (
     <View style={styles.container}>
@@ -234,12 +251,9 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'column' }}>
               <Text style={styles.deliveryText}>DELIVER TO</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                
-                {/* Hiển thị địa chỉ */}
                 <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
                     {displayAddress}
                 </Text>
-
                 <AntDesign
                   style={{ marginLeft: 10 }}
                   name="caretdown"
@@ -256,25 +270,25 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           
-          {/* ... Phần còn lại giữ nguyên ... */}
+          {/* 5. Hiển thị tên động từ API */}
           <Text style={styles.greetingText}>
-            Hey Halal,{' '}
+            Hey {userName}, {' '}
             <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text>
           </Text>
+
           <TouchableOpacity style={styles.searchInput} onPress={goToSearch}>
             <AntDesign name="search1" color="#A0A5BA" size={24} />
             <Text> Search dishes, restaurants</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ... Categories Section giữ nguyên ... */}
+        {/* Categories Section */}
         <View style={styles.categoriesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>All Categories</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
               onPress={() => {
-                // Open modal immediately so user sees instant feedback (spinner if loading)
                 setSeeAllTitle('All Categories');
                 setSeeAllVisible(true);
                 setSeeAllItems(categories);
@@ -305,9 +319,8 @@ export default function HomeScreen() {
         </View>
       </View>
       
-      {/* ... Restaurants Section giữ nguyên ... */}
+      {/* Restaurants Section */}
       <View style={{ flex: 1 }}>
-         {/* Nội dung Restaurants giữ nguyên như cũ */}
          <View style={styles.restaurantsSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Open Restaurants</Text>
@@ -366,7 +379,6 @@ export default function HomeScreen() {
   );
 }
 
-// ... styles giữ nguyên không thay đổi ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -394,9 +406,6 @@ const styles = StyleSheet.create({
   deliveryText: {
     fontSize: 12,
     color: colors.primary,
-  },
-  deliveryLocation: {
-    fontSize: 14,
   },
   cartButton: {
     backgroundColor: '#181C2E',
