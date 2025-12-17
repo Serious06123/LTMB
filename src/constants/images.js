@@ -19,5 +19,6 @@ export const IMAGES = {
   shipperIcon : require('../assets/images/shipper.png'),
   shipper : require('../assets/images/shipper.png'),
   location_map : require('../assets/images/location-map.jpg'),
+  user_avatar : require('../assets/images/shipper.png'),
 };
 

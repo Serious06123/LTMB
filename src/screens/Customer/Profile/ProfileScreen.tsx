@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,30 +7,104 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../../../theme'; //
+import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+// --- REDUX & GRAPHQL ---
+import { useDispatch } from 'react-redux';
+import { logout } from '../../../features/general/generalSlice';
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+import { BASE_URL } from '../../../constants/config';
+
+// 1. ĐỊNH NGHĨA INTERFACE
+interface Address {
+  street: string;
+  city: string;
+}
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  address?: Address;
+}
+
+interface GetMeData {
+  me: UserProfile;
+}
+
+// 2. QUERY LẤY THÔNG TIN CÁ NHÂN
+const GET_ME = gql`
+  query GetMe {
+    me {
+      id
+      name
+      email
+      phone
+      avatar
+      address {
+        street
+        city
+      }
+    }
+  }
+`;
+
 const ProfileScreen = ({ navigation }: any) => {
-  
-  // Dữ liệu giả lập (Sau này có thể lấy từ Redux Store)
-  const user = {
-    name: 'Halal Lab',
-    email: 'halallab@gmail.com',
-    avatar: IMAGES.introman1, //
-    bio: 'I love fast food'
-  };
+  const dispatch = useDispatch();
+
+  // 3. GỌI API
+  const { data, loading, error, refetch } = useQuery<GetMeData>(GET_ME, {
+    fetchPolicy: 'network-only', // Luôn lấy dữ liệu mới nhất
+  });
+
+  // Tự động refresh khi quay lại màn hình này (ví dụ sau khi sửa đổi thông tin)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      refetch();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const user = data?.me;
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
       { text: 'Hủy', style: 'cancel' },
-      { text: 'Đồng ý', onPress: () => navigation.replace('Login') }
+      { 
+        text: 'Đồng ý', 
+        onPress: () => {
+          // 1. Xóa data trong Redux
+          dispatch(logout());
+          // 2. Reset Navigation về màn hình Login
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        } 
+      }
     ]);
+  };
+
+  // Hàm xử lý hiển thị Avatar
+  const getAvatarSource = () => {
+    if (user?.avatar) {
+      if (user.avatar.startsWith('http')) {
+        return { uri: user.avatar };
+      }
+      return { uri: `${BASE_URL}${user.avatar}` };
+    }
+    return IMAGES.introman1; // Ảnh mặc định
   };
 
   // Component hiển thị từng dòng menu
@@ -47,6 +121,14 @@ const ProfileScreen = ({ navigation }: any) => {
     </TouchableOpacity>
   );
 
+  if (loading && !user) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
@@ -54,24 +136,27 @@ const ProfileScreen = ({ navigation }: any) => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Hồ sơ cá nhân</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => console.log("Navigate to EditProfile")}>
            <Text style={styles.editBtnText}>Sửa</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* Phần 1: Thông tin người dùng */}
+        {/* Phần 1: Thông tin người dùng (Từ Database) */}
         <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-                <Image source={user.avatar} style={styles.avatar} />
+                <Image source={getAvatarSource()} style={styles.avatar} />
                 <TouchableOpacity style={styles.cameraIcon}>
                     <MaterialCommunityIcons name="camera" size={16} color="white" />
                 </TouchableOpacity>
             </View>
-            <Text style={styles.userName}>{user.name}</Text>
-            <Text style={styles.userEmail}>{user.email}</Text>
-            <Text style={styles.userBio}>{user.bio}</Text>
+            <Text style={styles.userName}>{user?.name || "Người dùng"}</Text>
+            <Text style={styles.userEmail}>{user?.email || "Chưa cập nhật email"}</Text>
+            {/* Hiển thị SĐT hoặc Địa chỉ làm Bio */}
+            <Text style={styles.userBio}>
+              {user?.phone ? user.phone : (user?.address?.street ? user.address.street : 'Chưa cập nhật thông tin')}
+            </Text>
         </View>
 
         {/* Phần 2: Các danh mục cài đặt */}
@@ -82,13 +167,13 @@ const ProfileScreen = ({ navigation }: any) => {
                 icon="user" 
                 title="Thông tin cá nhân" 
                 subtitle="Thay đổi tên, sđt"
-                onPress={() => console.log('Thông tin')} 
+                onPress={() => navigation.navigate('EditProfileScreen')} 
             />
             <MenuOption 
                 icon="map-pin" 
                 title="Địa chỉ đã lưu" 
-                subtitle="Nhà riêng, công ty"
-                onPress={() => navigation.navigate('LocationAccess')} // Điều hướng test
+                subtitle={user?.address?.street || "Chưa có địa chỉ"}
+                onPress={() => navigation.navigate('LocationAccess')} 
             />
             <MenuOption 
                 icon="credit-card" 
@@ -139,6 +224,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',

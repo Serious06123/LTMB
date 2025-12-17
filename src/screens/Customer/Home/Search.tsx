@@ -81,32 +81,6 @@ const SearchScreen = () => {
   const goToFoodSearch = (categoryName?: string) => {
     navigation.navigate('Food', { category: categoryName });
   };
-  const data = [
-    {
-      id: '1',
-      name: 'Pansi Restaurant',
-      rating: 4.7,
-      image: IMAGES.pizza1,
-    },
-    {
-      id: '2',
-      name: 'American Spicy Burger Shop',
-      rating: 4.3,
-      image: IMAGES.pizza1,
-    },
-    {
-      id: '3',
-      name: 'Cafeteria Coffee Club',
-      rating: 4.0,
-      image: IMAGES.pizza1,
-    },
-    {
-      id: '4',
-      name: 'Cafeteria Club',
-      rating: 4.0,
-      image: IMAGES.pizza1,
-    },
-  ];
   // GraphQL: fetch foods from backend
   const GET_FOODS = gql`
     query GetFoods($category: String) {
@@ -275,7 +249,7 @@ const SearchScreen = () => {
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Suggested Restaurants');
-              setSeeAllItems(data);
+              setSeeAllItems(restaurants);
               setSeeAllVisible(true);
             }}
           >
@@ -286,6 +260,7 @@ const SearchScreen = () => {
           data={restaurants}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}>
             <View style={styles.restaurantItem}>
               <Image source={item.image} style={styles.restaurantImage} />
               <View style={styles.restaurantInfo}>
@@ -298,6 +273,7 @@ const SearchScreen = () => {
                 </View>
               </View>
             </View>
+            </TouchableOpacity>
           )}
           showsVerticalScrollIndicator={false}
         />
@@ -331,6 +307,7 @@ const SearchScreen = () => {
           data={foods.slice(0, 10)}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => navigation.navigate('FoodDetail', { food: item })}>
             <View style={styles.foodItem}>
               <Image
                 source={
@@ -348,6 +325,7 @@ const SearchScreen = () => {
                 }
               </Text>
             </View>
+            </TouchableOpacity>
           )}
         />
       </View>
