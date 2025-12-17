@@ -15,57 +15,119 @@ import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
 import { useNavigation, useRoute } from '@react-navigation/native'; // <--- Đã thêm useRoute
 import DiscountPopup from '../../../components/DiscountPopup';
+import SeeAllModal from '../../../components/SeeAllModal';
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
 
-const categories = [
-  {
-    id: '1',
-    name: 'Hot Dog',
-    image: IMAGES.pizza1,
-  },
-  { id: '2', name: 'Burger', image: IMAGES.pizza1 },
-  { id: '3', name: 'Pizza', image: IMAGES.pizza1 },
-  { id: '4', name: 'Salad', image: IMAGES.pizza1 },
-];
+// Categories will be loaded from backend via GraphQL
+const GET_CATEGORIES = gql`
+  query GetCategories {
+    getCategories {
+      _id
+      name
+      image
+    }
+  }
+`;
 
-const restaurants = [
-  {
-    id: '1',
-    name: 'Rose Garden Restaurant',
-    details: 'Burger - Chicken - Rice - Wings',
-    rating: '4.7',
-    delivery: 'Free',
-    time: '20 min',
-    image: IMAGES.pizza1,
-  },
-  {
-    id: '2',
-    name: 'Another Restaurant',
-    details: 'Pizza - Pasta - Salad',
-    rating: '⭐ 4.5',
-    delivery: 'Free',
-    time: '15 min',
-    image: IMAGES.pizza1,
-  },
-  {
-    id: '3',
-    name: 'Another Restaurant',
-    details: 'Pizza - Pasta - Salad',
-    rating: '⭐ 4.5',
-    delivery: 'Free',
-    time: '15 min',
-    image: IMAGES.pizza1,
-  },
-];
+// GraphQL: fetch restaurants
+const GET_RESTAURANTS = gql`
+  query GetRestaurants($category: String) {
+    getRestaurants(category: $category) {
+      _id
+      name
+      rating
+      reviews
+      image
+      deliveryTime
+      deliveryFee
+      isOpen
+      categories {
+        _id
+        name
+      }
+      address {
+        street
+        city
+        lat
+        lng
+      }
+      createdAt
+    }
+  }
+`;
+
+interface Category {
+  _id: string;
+  name: string;
+  image: string;
+}
+interface GetCategoriesData {
+  getCategories: Category[];
+}
+
+interface Restaurant {
+  id: string;
+  name: string;
+  details: string;
+  rating: string;
+  delivery: string;
+  time: string;
+  image: string | { uri: string };
+}
+interface GetRestaurantsData {
+  getRestaurants: Restaurant[];
+}
 
 export default function HomeScreen() {
-  
   const [showDiscount, setShowDiscount] = useState(false);
+  const [seeAllVisible, setSeeAllVisible] = useState(false);
+  const [seeAllTitle, setSeeAllTitle] = useState('');
+  const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
   const navigation = useNavigation<any>();
-  
+
   // <--- Code mới thêm
   const route = useRoute();
   const { address } = (route.params || {}) as { address?: string };
   // ------------------
+
+  const {
+    data: catData,
+    loading: catLoading,
+    error: catError,
+  } = useQuery(GET_CATEGORIES);
+
+  const {
+    data: restData,
+    loading: restLoading,
+    error: restError,
+  } = useQuery<GetRestaurantsData>(GET_RESTAURANTS);
+
+  const restaurants = (restData?.getRestaurants || []).map((r: any) => ({
+    id: r._id,
+    name: r.name,
+    details: r.categories?.map((c: any) => c.name).join(' - ') || '',
+    rating: r.rating ? String(r.rating) : '4.0',
+    delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+    time: r.deliveryTime || '',
+    image: r.image || IMAGES.pizza1,
+    raw: r,
+  }));
+  console.log('Restaurants loaded:', restError);
+  // Debug logs to help diagnose missing categories
+  // useEffect(() => {
+  //   console.log('[HomeScreen] GET_CATEGORIES loading:', catLoading);
+  //   if (catError) {
+  //     console.error('[HomeScreen] GET_CATEGORIES error:', catError);
+  //   }
+  //   if (catData) {
+  //     console.log('[HomeScreen] GET_CATEGORIES data:', catData);
+  //   }
+  // }, [catData, catLoading, catError]);
+
+  // Fix: Ensure catData is typed to match the GraphQL response
+
+  const categories = (catData as GetCategoriesData)?.getCategories || [];
 
   const goToCart = () => {
     navigation.navigate('Cart' as never);
@@ -96,8 +158,11 @@ export default function HomeScreen() {
               <Text style={styles.deliveryText}>DELIVER TO</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {/* <--- Code mới sửa: Hiển thị địa chỉ động */}
-                <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
-                    {address || 'Current Location'}
+                <Text
+                  numberOfLines={1}
+                  style={{ maxWidth: 200, fontWeight: 'bold' }}
+                >
+                  {address || 'Current Location'}
                 </Text>
 
                 <AntDesign
@@ -130,6 +195,12 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>All Categories</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
+              onPress={() => {
+                // Open modal immediately so user sees instant feedback (spinner if loading)
+                setSeeAllTitle('All Categories');
+                setSeeAllVisible(true);
+                setSeeAllItems(categories);
+              }}
             >
               <Text style={styles.seeAllText}>See All</Text>
               <AntDesign name="right" color="#A0A5BA" size={15} />
@@ -139,14 +210,14 @@ export default function HomeScreen() {
             style={{ marginBottom: 16, paddingLeft: 5 }}
             horizontal
             data={categories}
-            keyExtractor={item => item.id}
+            keyExtractor={item => (item._id ? item._id : String(item._id))}
             renderItem={({ item }) => (
               <View style={styles.categoryItem}>
                 <View style={styles.categoryContainer}>
                   <Image
-                    source={item.image}
+                    source={item.image ? { uri: item.image } : IMAGES.pizza1}
                     style={styles.categoryImage}
-                  ></Image>
+                  />
                 </View>
                 <Text style={styles.categoryText}>{item.name}</Text>
               </View>
@@ -162,6 +233,11 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Open Restaurants</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
+              onPress={() => {
+                setSeeAllTitle('Open Restaurants');
+                setSeeAllItems(restaurants);
+                setSeeAllVisible(true);
+              }}
             >
               <Text style={styles.seeAllText}>See All</Text>
               <AntDesign name="right" color="#A0A5BA" size={15} />
@@ -207,9 +283,13 @@ export default function HomeScreen() {
           />
         </View>
       </View>
-      {showDiscount && (
-          <DiscountPopup onClose={() => setShowDiscount(false)} />
-      )}
+      {showDiscount && <DiscountPopup onClose={() => setShowDiscount(false)} />}
+      <SeeAllModal
+        visible={seeAllVisible}
+        title={seeAllTitle}
+        items={seeAllItems}
+        onClose={() => setSeeAllVisible(false)}
+      />
     </View>
   );
 }
