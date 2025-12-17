@@ -72,6 +72,9 @@ const SearchScreen = () => {
   const [seeAllVisible, setSeeAllVisible] = useState(false);
   const [seeAllTitle, setSeeAllTitle] = useState('');
   const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
+  const [type, setType] = useState<'restaurant' | 'food' | 'category'>(
+    'restaurant',
+  );
   const goToCart = () => {
     navigation.navigate('Cart');
   };
@@ -150,32 +153,33 @@ const SearchScreen = () => {
     error: restError,
   } = useQuery<getRestaurantsData>(GET_RESTAURANTS);
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
-      // 1. Lấy link gốc từ database
-      const originalImage = r.image; 
-  
-      // 2. Xử lý logic đường dẫn
-      let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
-  
-      if (originalImage) {
-        if (originalImage.startsWith('http')) {
-          // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
-          finalUri = { uri: originalImage };
-        } else {
-          // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
-          finalUri = { uri: `${BASE_URL}${originalImage}` };
-        }
+    // 1. Lấy link gốc từ database
+    const originalImage = r.image;
+
+    // 2. Xử lý logic đường dẫn
+    let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+
+    if (originalImage) {
+      if (originalImage.startsWith('http')) {
+        // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
+        finalUri = { uri: originalImage };
+      } else {
+        // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
+        finalUri = { uri: `${BASE_URL}${originalImage}` };
       }
-      return {
-        id: r._id,
-        name: r.name,
-        details: r.categories?.map((c: any) => c.name).join(' - ') || '',
-        rating: r.rating ? String(r.rating) : '4.0',
-        delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
-        time: r.deliveryTime || '',
-        image: finalUri, // Gán URL đã xử lý chuẩn vào đây
-        raw: r,
-      };
-    });
+    }
+    return {
+      id: r._id,
+      name: r.name,
+      details: r.categories?.map((c: any) => c.name).join(' - ') || '',
+      rating: r.rating ? String(r.rating) : '4.0',
+      delivery:
+        r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      time: r.deliveryTime || '',
+      image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+      raw: r,
+    };
+  });
   console.log('[Search] fetched foods:', foodsData);
 
   if (foodsError) {
@@ -249,6 +253,7 @@ const SearchScreen = () => {
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Suggested Restaurants');
+              setType('restaurant');
               setSeeAllItems(restaurants);
               setSeeAllVisible(true);
             }}
@@ -260,19 +265,23 @@ const SearchScreen = () => {
           data={restaurants}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}>
-            <View style={styles.restaurantItem}>
-              <Image source={item.image} style={styles.restaurantImage} />
-              <View style={styles.restaurantInfo}>
-                <Text style={styles.restaurantName}>{item.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <AntDesign name="staro" color={colors.primary} size={15} />
-                  <Text style={styles.restaurantRating}>
-                    {String(item.rating)}
-                  </Text>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('RestaurantView', { restaurant: item.raw })
+              }
+            >
+              <View style={styles.restaurantItem}>
+                <Image source={item.image} style={styles.restaurantImage} />
+                <View style={styles.restaurantInfo}>
+                  <Text style={styles.restaurantName}>{item.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <AntDesign name="staro" color={colors.primary} size={15} />
+                    <Text style={styles.restaurantRating}>
+                      {String(item.rating)}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
             </TouchableOpacity>
           )}
           showsVerticalScrollIndicator={false}
@@ -293,6 +302,7 @@ const SearchScreen = () => {
             onPress={() => {
               setSeeAllTitle('Popular Food');
               // open modal immediately and pass fetched foods
+              setType('food');
               setSeeAllItems(foods);
               setSeeAllVisible(true);
             }}
@@ -307,24 +317,26 @@ const SearchScreen = () => {
           data={foods.slice(0, 10)}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigation.navigate('FoodDetail', { food: item })}>
-            <View style={styles.foodItem}>
-              <Image
-                source={
-                  typeof item.image === 'string'
-                    ? { uri: item.image }
-                    : item.image
-                }
-                style={styles.foodImage}
-              />
-              <Text style={styles.foodName}>{item.name}</Text>
-              <Text style={{ color: '#646982', fontSize: 13 }}>
-                {
-                  // item.restaurant ||
-                  item.category || ''
-                }
-              </Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('FoodDetail', { food: item })}
+            >
+              <View style={styles.foodItem}>
+                <Image
+                  source={
+                    typeof item.image === 'string'
+                      ? { uri: item.image }
+                      : item.image
+                  }
+                  style={styles.foodImage}
+                />
+                <Text style={styles.foodName}>{item.name}</Text>
+                <Text style={{ color: '#646982', fontSize: 13 }}>
+                  {
+                    // item.restaurant ||
+                    item.category || ''
+                  }
+                </Text>
+              </View>
             </TouchableOpacity>
           )}
         />
@@ -333,6 +345,7 @@ const SearchScreen = () => {
         visible={seeAllVisible}
         title={seeAllTitle}
         items={seeAllItems}
+        itemType={type}
         onClose={() => setSeeAllVisible(false)}
       />
     </View>

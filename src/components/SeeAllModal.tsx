@@ -1,4 +1,5 @@
 import React, { JSX } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   Modal,
   View,
@@ -19,6 +20,8 @@ type Props = {
   items: Item[];
   onClose: () => void;
   renderItem?: ({ item }: { item: Item }) => JSX.Element;
+  /** determines navigation behavior: 'restaurant' | 'food' | 'category' */
+  itemType?: 'restaurant' | 'food' | 'category';
 };
 
 export default function SeeAllModal({
@@ -27,39 +30,66 @@ export default function SeeAllModal({
   items,
   onClose,
   renderItem,
+  itemType,
 }: Props) {
-  const defaultRender = ({ item }: { item: Item }) => (
-    <View style={styles.itemRow}>
-      <View style={styles.imageWrap}>
-        {item.image ? (
-          typeof item.image === 'string' ? (
-            <Image
-              source={{ uri: item.image }}
-              style={styles.itemImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <Image
-              source={item.image}
-              style={styles.itemImage}
-              resizeMode="cover"
-            />
-          )
-        ) : null}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.itemTitle}>{item.name || item.title}</Text>
-        {item.details ? (
-          <Text style={styles.itemSub}>{item.details}</Text>
-        ) : null}
-        {item.rating ? (
-          <Text style={styles.itemMeta}>
-            {item.rating} · {item.time || ''}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
+  const navigation: any = useNavigation();
+  const defaultRender = ({ item }: { item: Item }) => {
+    const handlePress = () => {
+      if (onClose) onClose();
+      const id = item.id || item._id || item._id?.toString();
+      if (itemType === 'restaurant') {
+        navigation.navigate('RestaurantView', { id, restaurant: item });
+        return;
+      }
+      if (itemType === 'food') {
+        navigation.navigate('FoodDetail', { id, food: item });
+        return;
+      }
+      if (itemType === 'category') {
+        const categoryName =
+          item.name || item.title || (item._id ? String(item._id) : undefined);
+        navigation.navigate('Food', { categoryId: id, category: categoryName });
+        return;
+      }
+    };
+
+    return (
+      <TouchableOpacity
+        style={styles.itemRow}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.imageWrap}>
+          {item.image ? (
+            typeof item.image === 'string' ? (
+              <Image
+                source={{ uri: item.image }}
+                style={styles.itemImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Image
+                source={item.image}
+                style={styles.itemImage}
+                resizeMode="cover"
+              />
+            )
+          ) : null}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.itemTitle}>{item.name || item.title}</Text>
+          {item.details ? (
+            <Text style={styles.itemSub}>{item.details}</Text>
+          ) : null}
+          {item.rating ? (
+            <Text style={styles.itemMeta}>
+              {item.rating} · {item.time || ''}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
