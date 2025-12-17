@@ -3,9 +3,33 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons'; // Import icon
 import { colors } from '../../theme'; //
+import { useQuery } from '@apollo/client/react';
+import { gql } from '@apollo/client';
+
+const GET_USER_PROFILE = gql`
+  query GetUserProfile {
+    me {
+      id
+      name
+      walletBalance
+      avatar
+    }
+  }
+`;
+
+interface UserProfile {
+  id: string;
+  name: string;
+  walletBalance: number;
+  avatar?: string;
+}
+
+interface UserProfileQueryResult {
+  me: UserProfile;
+}
 
 export default function ShipperProfileScreen({ navigation }: any) {
-  
+  const { data, loading, error } = useQuery<UserProfileQueryResult>(GET_USER_PROFILE, { fetchPolicy: 'network-only' });
   const handleLogout = () => {
     Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
       { text: "Hủy", style: "cancel" },
@@ -38,11 +62,11 @@ export default function ShipperProfileScreen({ navigation }: any) {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <Image 
-              source={require('../../assets/images/shipper.png')} 
+              source={data?.me?.avatar ? { uri: data.me.avatar } : require('../../assets/images/shipper.png')} 
               style={styles.avatar} 
             />
           </View>
-          <Text style={styles.name}>Nguyễn Văn Tài Xế</Text>
+          <Text style={styles.name}>{data?.me?.name}</Text>
           <Text style={styles.vehicleInfo}>Honda Wave • 59-X1 123.45</Text>
           <View style={styles.ratingContainer}>
             <Ionicons name="star" size={14} color="#FBC02D" style={{marginRight: 4}} />
