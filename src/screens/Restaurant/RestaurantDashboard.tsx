@@ -8,15 +8,15 @@ import {
     ScrollView,
     Dimensions,
     ActivityIndicator,
-    RefreshControl
+    RefreshControl,
+    Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { gql } from '@apollo/client';
-import { useQuery } from '@apollo/client/react';
-
+import { useQuery, useMutation } from '@apollo/client/react';
 import { colors } from '../../theme';
 import { IMAGES } from '../../constants/images';
 
@@ -26,7 +26,8 @@ const { width } = Dimensions.get('window');
 const TABS = [
     { id: 'Pending', title: 'Mới', dbStatus: ['pending'] },
     { id: 'Processing', title: 'Đang làm', dbStatus: ['confirmed', 'preparing'] },
-    { id: 'Delivering', title: 'Đang giao', dbStatus: ['shipping', 'delivering', 'delivered'] },
+    { id: 'Delivering', title: 'Đang giao', dbStatus: ['shipping'] },
+    { id: 'Delivered', title: 'Đã giao', dbStatus: ['delivered'] },
     { id: 'Completed', title: 'Hoàn tất', dbStatus: ['completed'] },
     { id: 'Cancelled', title: 'Đã hủy', dbStatus: ['cancelled'] },
 ];
@@ -57,6 +58,7 @@ interface OrderRaw {
     createdAt: string;
     items: OrderItem[];
     customerUser: CustomerUser | null;
+    shipperId?: string;
 }
 
 // Dữ liệu đã xử lý để hiển thị lên UI (thêm các field như displayDate, image...)
@@ -78,6 +80,7 @@ const GET_RESTAURANT_ORDERS = gql`
       totalAmount
       status
       createdAt
+      shipperId
       items {
         name
         quantity
@@ -96,7 +99,26 @@ const GET_RESTAURANT_ORDERS = gql`
     }
   }
 `;
+interface UpdateOrderStatusData {
+    updateOrderStatus: {
+        id: string;
+        status: string;
+    }
+}
 
+interface UpdateOrderStatusVars {
+    orderId: string;
+    status: string;
+}
+
+const UPDATE_ORDER_STATUS = gql`
+  mutation UpdateOrderStatus($orderId: ID!, $status: String!) {
+    updateOrderStatus(orderId: $orderId, status: $status) {
+      id
+      status
+    }
+  }
+`;
 // --- 4. HELPER FUNCTIONS ---
 const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -115,10 +137,8 @@ const getStatusColor = (status: string) => {
 const getStatusText = (status: string) => {
     const map: Record<string, string> = {
         pending: 'Chờ xác nhận',
-        confirmed: 'Đã nhận đơn',
         preparing: 'Đang nấu',
         shipping: 'Đang giao',
-        delivering: 'Shipper đang giao',
         delivered: 'Đã đến nơi',
         completed: 'Hoàn tất',
         cancelled: 'Đã hủy'
@@ -169,8 +189,8 @@ export default function RestaurantDashboard() {
             }));
 
         // Sắp xếp mới nhất lên đầu
-        return result.sort((a, b) => 
-             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        return result.sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
     }, [data, activeTabId]);
 
@@ -194,15 +214,69 @@ export default function RestaurantDashboard() {
             </View>
         );
     };
+    const [updateStatusMutation] = useMutation<UpdateOrderStatusData, UpdateOrderStatusVars>(UPDATE_ORDER_STATUS);
+
+    // 2. Hàm xử lý khi ấn vào đơn hàng
+    const handlePressOrder = (order: ProcessedOrder) => {
+        const currentStatus = order.status?.toLowerCase();
+        let nextStatus = '';
+        let titleAlert = '';
+        let messageAlert = '';
+
+        if (currentStatus === 'pending') {
+            nextStatus = 'preparing';
+            titleAlert = 'Xác nhận đơn hàng';
+            messageAlert = 'Chuyển trạng thái sang "Đang làm" (Preparing)?';
+        } else if (currentStatus === 'preparing') {
+            // --- KIỂM TRA ĐIỀU KIỆN Ở FRONTEND (UX tốt hơn) ---
+            if (!order.shipperId) {
+                Alert.alert(
+                    "Chưa có tài xế", 
+                    "Đơn hàng này chưa có Shipper nhận. Bạn chưa thể giao hàng."
+                );
+                return; // Dừng lại, không cho gọi API
+            }
+
+            nextStatus = 'shipping';
+            titleAlert = 'Giao hàng cho Shipper';
+            messageAlert = 'Đã có tài xế nhận! Xác nhận giao món cho tài xế?';
+        } else {
+            return;
+        }
+
+        Alert.alert(
+            titleAlert,
+            messageAlert,
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Đồng ý',
+                    onPress: async () => {
+                        try {
+                            await updateStatusMutation({
+                                variables: {
+                                    orderId: order.id,
+                                    status: nextStatus
+                                }
+                            });
+                            refetch(); 
+                        } catch (err) {
+                            // Xử lý lỗi từ Backend trả về (ví dụ trường hợp hy hữu check ở FE ok nhưng BE fail)
+                            const msg = (err as Error).message;
+                            Alert.alert("Lỗi", msg);
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     // --- RENDER MỘT ĐƠN HÀNG ---
     const renderOrderItem = (item: ProcessedOrder) => (
         <TouchableOpacity
             key={item.id}
             style={styles.orderCard}
-            onPress={() => {
-                console.log("Xem chi tiết đơn:", item.id);
-            }}
+            onPress={() => handlePressOrder(item)}
         >
             <View style={styles.orderHeader}>
                 <Image source={item.customerImage} style={styles.customerAvatar} />
@@ -311,7 +385,7 @@ export default function RestaurantDashboard() {
 
                     {/* Render List */}
                     {loading && !data ? (
-                         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+                        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
                     ) : error ? (
                         <View style={styles.emptyState}>
                             <Text style={{ color: 'red' }}>Lỗi: {error.message}</Text>

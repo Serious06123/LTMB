@@ -1,289 +1,345 @@
-import React, { useState } from 'react';
-import { gql } from '@apollo/client';
-import { useMutation } from '@apollo/client/react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
-  Dimensions,
-  Alert,
   ScrollView,
+  Image,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/AntDesign';
-import { colors } from '../../../theme'; 
-import PrimaryButton from '../../../components/button/PrimaryButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
-const { width } = Dimensions.get('window');
+import { colors } from '../../../theme';
+import { gql } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client/react';
 
-// --- 1. DEFINITIONS ---
+// --- 1. ĐỊNH NGHĨA INTERFACE (Giữ nguyên) ---
 
-type PaymentMethod = 'cash' | 'qr';
+interface Address {
+  street: string;
+  city: string;
+  lat: number;
+  lng: number;
+}
+
+interface UserProfile {
+  id: string;
+  name: string;
+  phone: string;
+  address: Address;
+}
 
 interface CartItem {
-  id: string;
+  foodId: string;
   name: string;
   price: number;
   quantity: number;
-  image: any;
+  image: string;
 }
 
-interface ShopGroup {
-  shopId: string;
-  shopName: string;
+interface Cart {
+  _id: string;
+  restaurantId: string;
   items: CartItem[];
+  totalAmount: number;
 }
 
-type PaymentScreenRouteParams = {
-  Payment: {
-    totalAmount: number;
-    selectedShops: ShopGroup[];
-  };
-};
+interface GetUserProfileData {
+  me: UserProfile;
+  myCart: Cart;
+}
 
 interface CreateOrderInput {
   restaurantId: string;
-  shipperId: string | null;
-  items: {
-    foodId: string;
-    name: string;
-    price: number;
-    quantity: number;
-    image: string;
-  }[];
+  items: any[];
   totalAmount: number;
   paymentMethod: string;
+  shippingAddress: Address;
 }
 
-// --- 2. GRAPHQL TYPES (FIX LỖI HERE) ---
+// --- 2. QUERY & MUTATION ---
 
-// Định nghĩa kiểu dữ liệu trả về của Mutation
-interface CreateOrderData {
-  createOrder: {
-    id: string;
-    totalAmount: number;
-    status: string;
-    createdAt: string;
-  };
-}
-
-// Định nghĩa kiểu biến truyền vào
-interface CreateOrderVars {
-  input: CreateOrderInput;
-}
+const GET_USER_PROFILE = gql`
+  query GetUserProfile {
+    me {
+      id
+      name
+      phone
+      address {
+        street
+        city
+        lat
+        lng
+      }
+    }
+    myCart {
+      _id
+      restaurantId
+      items {
+        foodId
+        name
+        price
+        quantity
+        image
+      }
+      totalAmount
+    }
+  }
+`;
 
 const CREATE_ORDER = gql`
   mutation CreateOrder($input: CreateOrderInput!) {
     createOrder(input: $input) {
       id
-      totalAmount
       status
-      createdAt
+      totalAmount
+      shippingAddress {
+        street
+      }
     }
   }
 `;
 
-// --- 3. COMPONENT ---
-
 export default function PaymentScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<PaymentScreenRouteParams, 'Payment'>>();
+  const route = useRoute<any>(); 
   
-  const { totalAmount, selectedShops } = route.params || {
-    totalAmount: 0,
-    selectedShops: [],
+  const [deliveryAddress, setDeliveryAddress] = useState<Address | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
+
+  // --- 3. SỬA LỖI TẠI ĐÂY ---
+  // Bỏ onCompleted, chỉ dùng Generic Type <GetUserProfileData>
+  const { data, loading, error } = useQuery<GetUserProfileData>(GET_USER_PROFILE, {
+    fetchPolicy: 'network-only',
+  });
+
+  const [createOrderMutation, { loading: creating }] = useMutation(CREATE_ORDER);
+
+  // --- 4. DÙNG useEffect THAY CHO onCompleted ---
+  // Khi data tải xong, tự động set địa chỉ mặc định
+  useEffect(() => {
+    if (data?.me?.address?.street && !deliveryAddress) {
+      setDeliveryAddress({
+        street: data.me.address.street,
+        city: data.me.address.city || 'Hồ Chí Minh',
+        lat: data.me.address.lat || 0,
+        lng: data.me.address.lng || 0
+      });
+    }
+  }, [data]); // Chạy lại mỗi khi data thay đổi
+
+  // Nhận địa chỉ từ màn hình Map trả về
+  useEffect(() => {
+    if (route.params?.selectedAddress) {
+      setDeliveryAddress(route.params.selectedAddress);
+    }
+  }, [route.params?.selectedAddress]);
+
+  const handleOpenMap = () => {
+    navigation.navigate('MapScreen', { 
+        isPickingMode: true, 
+        returnScreen: 'Payment' 
+    }); 
   };
 
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('qr');
-
-  // Truyền Generic Type vào useMutation để TS hiểu data trả về
-  const [createOrder, { loading: creating }] = useMutation<CreateOrderData, CreateOrderVars>(CREATE_ORDER);
-
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('vi-VN') + 'đ';
-  };
-
-  const handlePay = async () => {
-    if (!selectedShops || selectedShops.length === 0) {
-      Alert.alert("Lỗi", "Không có sản phẩm nào để thanh toán");
+  const handleOrder = async () => {
+    const cart = data?.myCart;
+    
+    if (!cart || !cart.items || cart.items.length === 0) {
+      Alert.alert('Giỏ hàng trống!');
       return;
     }
 
+    if (!deliveryAddress) {
+      Alert.alert('Lỗi', 'Vui lòng chọn địa chỉ giao hàng!');
+      return;
+    }
+
+    const orderInput: CreateOrderInput = {
+      restaurantId: cart.restaurantId,
+      items: cart.items.map((i) => ({
+        foodId: i.foodId,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image
+      })),
+      totalAmount: cart.totalAmount,
+      paymentMethod: paymentMethod,
+      shippingAddress: {
+        street: deliveryAddress.street,
+        city: deliveryAddress.city,
+        lat: deliveryAddress.lat,
+        lng: deliveryAddress.lng
+      }
+    };
+
     try {
-      const targetShop = selectedShops[0];
-      const items = targetShop.items || [];
-      const restaurantId = targetShop.shopId;
-
-      const inputPayload: CreateOrderInput = {
-        restaurantId,
-        shipperId: null,
-        items: items.map((i) => ({
-          foodId: i.id,
-          name: i.name,
-          price: i.price,
-          quantity: i.quantity,
-          image: (typeof i.image === 'string') ? i.image : (i.image?.uri || ''),
-        })),
-        totalAmount: totalAmount || 0,
-        paymentMethod: selectedMethod === 'qr' ? 'ONLINE' : 'COD',
-      };
-
-      // Gọi API
-      const { data } = await createOrder({ variables: { input: inputPayload } });
+      await createOrderMutation({
+        variables: { input: orderInput }
+      });
       
-      // Bây giờ TS đã hiểu data có property createOrder
-      const orderId = data?.createOrder?.id;
-
-      Alert.alert(
-        'Thanh toán thành công',
-        `Đơn hàng đã được tạo và đang chờ Shipper nhận.\nMã đơn: ${orderId?.slice(-6).toUpperCase()}`,
-        [
-          {
-            text: 'Về trang chủ',
-            onPress: () => navigation.navigate('CustomerTabs'),
-            style: 'cancel'
-          },
-          {
-            text: 'Theo dõi đơn hàng',
-            onPress: () => {
-                // 'CustomerTabs' là tên Stack chứa các Tab (trong navigation.tsx)
-                // 'History' là tên Tab bạn đặt trong CustomerTabs.tsx (kiểm tra lại tên chính xác nhé)
-                navigation.navigate('CustomerTabs', { 
-                    screen: 'HistoryTab' 
-                });
-            },
-          },
-        ],
-      );
+      Alert.alert('Thành công', 'Đặt hàng thành công!', [
+        { text: 'OK', onPress: () => navigation.navigate('CustomerTabs', { screen: 'Orders' }) } 
+      ]);
     } catch (err: any) {
-      console.error('CreateOrder Failed:', err);
-      Alert.alert('Lỗi', 'Không thể tạo đơn hàng: ' + err.message);
+      const msg = err.message || 'Có lỗi xảy ra';
+      Alert.alert('Lỗi đặt hàng', msg);
     }
   };
 
-  const renderMethodOption = (id: PaymentMethod, title: string, iconName: string) => {
-    const isSelected = selectedMethod === id;
-    return (
-      <TouchableOpacity
-        style={[styles.methodItem, isSelected && styles.methodItemActive]}
-        onPress={() => setSelectedMethod(id)}
-      >
-        {isSelected && (
-          <View style={styles.checkIcon}>
-            <Icon name="checkcircle" size={20} color={colors.primary} />
-          </View>
-        )}
-        <Icon name={iconName} size={28} color={isSelected ? colors.primary : '#A0A5BA'} />
-        <Text style={[styles.methodText, isSelected && styles.methodTextActive]}>
-          {title}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  if (error) return <View style={styles.center}><Text>Lỗi tải trang: {error.message}</Text></View>;
+
+  const cart = data?.myCart;
+  const deliveryFee = 15000;
+  const finalTotal = (cart?.totalAmount || 0) + deliveryFee;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrowleft" size={24} color="#181C2E" />
+          <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thanh toán</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.methodRow}>
-          {renderMethodOption('qr', 'Mã QR', 'qrcode')}
-          {renderMethodOption('cash', 'Tiền mặt', 'wallet')}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        
+        {/* Địa chỉ giao hàng */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Địa chỉ giao hàng</Text>
+          <TouchableOpacity style={styles.addressCard} onPress={handleOpenMap}>
+            <View style={styles.mapIcon}>
+                <FontAwesome5 name="map-marked-alt" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+                {deliveryAddress ? (
+                    <>
+                        <Text style={styles.addressStreet}>{deliveryAddress.street}</Text>
+                        <Text style={styles.addressCity}>{deliveryAddress.city}</Text>
+                    </>
+                ) : (
+                    <Text style={{color: '#888'}}>Vui lòng chọn địa chỉ giao hàng</Text>
+                )}
+            </View>
+            <MaterialIcons name="navigate-next" size={24} color="#ccc" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.mainDisplayContainer}>
-          <Text style={styles.sectionTitle}>
-            {selectedMethod === 'qr' ? 'Quét mã để thanh toán' : 'Thanh toán khi nhận hàng'}
-          </Text>
-
-          <View style={styles.cardDisplay}>
-            {selectedMethod === 'qr' ? (
-              <View style={styles.qrContainer}>
-                <View style={styles.qrFrame}>
-                  <Image
-                    source={{
-                      uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ThanhToan_${totalAmount}`,
-                    }}
-                    style={styles.qrImage}
-                  />
-                </View>
-                <Text style={styles.qrNote}>Ngân hàng MB Bank</Text>
-                <Text style={styles.qrOwner}>NGUYEN VAN A</Text>
-                <Text style={styles.qrNumber}>1234 5678 9999</Text>
-                <Text style={{ color: colors.primary, marginTop: 5, fontWeight: 'bold' }}>
-                  Số tiền: {formatCurrency(totalAmount)}
-                </Text>
+        {/* Tóm tắt đơn hàng */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tóm tắt đơn hàng</Text>
+          {cart?.items.map((item, index) => (
+            <View key={index} style={styles.itemRow}>
+              <Image source={{ uri: item.image }} style={styles.itemImage} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemQuantity}>x{item.quantity}</Text>
               </View>
-            ) : (
-              <View style={styles.cashContainer}>
-                <View style={styles.iconCircle}>
-                  <Icon name="wallet" size={60} color={colors.primary} />
-                </View>
-                <Text style={styles.cashText}>
-                  Shipper sẽ thu <Text style={{ fontWeight: 'bold', color: colors.primary }}>{formatCurrency(totalAmount)}</Text> tiền mặt khi giao hàng.
-                </Text>
-                <Text style={styles.cashSubText}>
-                  Vui lòng chuẩn bị tiền lẻ để thanh toán nhanh hơn.
-                </Text>
-              </View>
-            )}
-          </View>
+              <Text style={styles.itemPrice}>{(item.price * item.quantity).toLocaleString()}đ</Text>
+            </View>
+          ))}
         </View>
+
+        {/* Phương thức thanh toán */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Phương thức thanh toán</Text>
+          
+          <TouchableOpacity 
+            style={[styles.paymentMethod, paymentMethod === 'COD' && styles.activeMethod]}
+            onPress={() => setPaymentMethod('COD')}
+          >
+            <MaterialIcons name="money" size={24} color={paymentMethod === 'COD' ? colors.primary : '#666'} />
+            <Text style={[styles.methodText, paymentMethod === 'COD' && styles.activeText]}>Thanh toán khi nhận hàng (COD)</Text>
+            {paymentMethod === 'COD' && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.paymentMethod, paymentMethod === 'ONLINE' && styles.activeMethod]}
+            onPress={() => setPaymentMethod('ONLINE')}
+          >
+            <MaterialIcons name="payment" size={24} color={paymentMethod === 'ONLINE' ? colors.primary : '#666'} />
+            <Text style={[styles.methodText, paymentMethod === 'ONLINE' && styles.activeText]}>Ví điện tử / Ngân hàng</Text>
+            {paymentMethod === 'ONLINE' && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Tổng tiền */}
+        <View style={styles.billSection}>
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Tạm tính</Text>
+                <Text style={styles.billValue}>{cart?.totalAmount.toLocaleString()}đ</Text>
+            </View>
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Phí giao hàng</Text>
+                <Text style={styles.billValue}>{deliveryFee.toLocaleString()}đ</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.billRow}>
+                <Text style={styles.totalLabel}>Tổng cộng</Text>
+                <Text style={styles.totalValue}>{finalTotal.toLocaleString()}đ</Text>
+            </View>
+        </View>
+
       </ScrollView>
 
+      {/* Nút đặt hàng */}
       <View style={styles.footer}>
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>TỔNG CỘNG:</Text>
-          <Text style={styles.totalAmount}>{formatCurrency(totalAmount)}</Text>
-        </View>
-
-        {/* Sử dụng PrimaryButton đã fix props */}
-        <PrimaryButton 
-          title={creating ? "ĐANG XỬ LÝ..." : "XÁC NHẬN THANH TOÁN"} 
-          onPress={handlePay} 
-          disabled={creating}
-          loading={creating} // Có thể dùng thêm prop loading nếu muốn hiển thị spinner
-        />
+        <TouchableOpacity 
+            style={styles.orderButton} 
+            onPress={handleOrder}
+            disabled={creating}
+        >
+            {creating ? (
+                <ActivityIndicator color="#fff" />
+            ) : (
+                <Text style={styles.orderButtonText}>ĐẶT HÀNG - {finalTotal.toLocaleString()}đ</Text>
+            )}
+        </TouchableOpacity>
       </View>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FBFBFB' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 20 },
-  backBtn: { width: 45, height: 45, backgroundColor: '#ECF0F4', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#181C2E' },
-  methodRow: { flexDirection: 'row', paddingHorizontal: 24, justifyContent: 'space-between', marginBottom: 30 },
-  methodItem: { width: (width - 60) / 2, height: 80, backgroundColor: '#FFF', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#ECF0F4', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5 },
-  methodItemActive: { borderColor: colors.primary, backgroundColor: '#FFF' },
-  methodText: { marginTop: 8, color: '#A0A5BA', fontSize: 14, fontWeight: '600' },
-  methodTextActive: { color: colors.primary },
-  checkIcon: { position: 'absolute', top: 5, right: 5 },
-  mainDisplayContainer: { flex: 1, paddingHorizontal: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#181C2E', marginBottom: 16, textTransform: 'uppercase' },
-  cardDisplay: { backgroundColor: '#F0F5FA', borderRadius: 30, padding: 24, alignItems: 'center', justifyContent: 'center', minHeight: 300 },
-  qrContainer: { alignItems: 'center', width: '100%' },
-  qrFrame: { padding: 16, backgroundColor: '#FFF', borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5, marginBottom: 20 },
-  qrImage: { width: 180, height: 180 },
-  qrNote: { fontSize: 14, color: '#A0A5BA', marginBottom: 4 },
-  qrOwner: { fontSize: 18, fontWeight: 'bold', color: '#181C2E', marginBottom: 4 },
-  qrNumber: { fontSize: 20, fontWeight: 'bold', color: colors.primary, letterSpacing: 1 },
-  cashContainer: { alignItems: 'center', paddingHorizontal: 20 },
-  iconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FFEBD2', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  cashText: { fontSize: 16, fontWeight: '600', color: '#181C2E', textAlign: 'center', marginBottom: 12 },
-  cashSubText: { fontSize: 14, color: '#A0A5BA', textAlign: 'center' },
-  footer: { padding: 24, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.05, shadowRadius: 10 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
-  totalLabel: { fontSize: 14, color: '#A0A5BA', marginBottom: 4, fontWeight: 'bold' },
-  totalAmount: { fontSize: 30, fontWeight: 'bold', color: '#181C2E' },
+  container: { flex: 1, backgroundColor: '#F8F9FE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff' },
+  backBtn: { padding: 5 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#181C2E' },
+  addressCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 12, elevation: 2 },
+  mapIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  addressStreet: { fontSize: 15, fontWeight: '600', color: '#333' },
+  addressCity: { fontSize: 13, color: '#666', marginTop: 2 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 12, marginBottom: 8 },
+  itemImage: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#eee' },
+  itemName: { fontSize: 14, fontWeight: '600', color: '#333' },
+  itemQuantity: { fontSize: 12, color: '#888' },
+  itemPrice: { fontSize: 14, fontWeight: 'bold', color: colors.primary },
+  paymentMethod: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#fff', borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
+  activeMethod: { borderColor: colors.primary, backgroundColor: '#FFF9F9' },
+  methodText: { flex: 1, marginLeft: 10, fontSize: 14, color: '#666' },
+  activeText: { color: colors.primary, fontWeight: '600' },
+  billSection: { backgroundColor: '#fff', padding: 15, borderRadius: 12 },
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  billLabel: { fontSize: 14, color: '#666' },
+  billValue: { fontSize: 14, fontWeight: '600', color: '#333' },
+  divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
+  totalLabel: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  totalValue: { fontSize: 18, fontWeight: 'bold', color: colors.primary },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 20, elevation: 10, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  orderButton: { backgroundColor: colors.primary, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  orderButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

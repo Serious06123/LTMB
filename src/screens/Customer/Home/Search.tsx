@@ -210,9 +210,6 @@ const SearchScreen = () => {
           <Text style={styles.searchTitle}>Tìm kiếm</Text>
           <TouchableOpacity style={styles.cartButton} onPress={goToCart}>
             <MaterialCommunityIcons name="cart" color="#fff" size={24} />
-            <View style={styles.notify}>
-              <Text style={styles.notifyText}>2</Text>
-            </View>
           </TouchableOpacity>
         </View>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
