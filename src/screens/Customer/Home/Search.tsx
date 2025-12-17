@@ -1,4 +1,4 @@
-import React, { use } from 'react';
+import React, { use, useMemo } from 'react';
 import {
   View,
   Text,
@@ -144,39 +144,54 @@ const SearchScreen = () => {
   } = useQuery<getCategoriesData>(GET_CATEGORIES);
   const categories = categoriesData?.getCategories || [];
   const foods = foodsData?.getFoods || [];
+
   const {
     data: restData,
     loading: restLoading,
     error: restError,
   } = useQuery<getRestaurantsData>(GET_RESTAURANTS);
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
-      // 1. Lấy link gốc từ database
-      const originalImage = r.image; 
-  
-      // 2. Xử lý logic đường dẫn
-      let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
-  
-      if (originalImage) {
-        if (originalImage.startsWith('http')) {
-          // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
-          finalUri = { uri: originalImage };
-        } else {
-          // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
-          finalUri = { uri: `${BASE_URL}${originalImage}` };
-        }
+    // 1. Lấy link gốc từ database
+    const originalImage = r.image;
+
+    // 2. Xử lý logic đường dẫn
+    let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+
+    if (originalImage) {
+      if (originalImage.startsWith('http')) {
+        // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
+        finalUri = { uri: originalImage };
+      } else {
+        // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
+        finalUri = { uri: `${BASE_URL}${originalImage}` };
       }
-      return {
-        id: r._id,
-        name: r.name,
-        details: r.categories?.map((c: any) => c.name).join(' - ') || '',
-        rating: r.rating ? String(r.rating) : '4.0',
-        delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
-        time: r.deliveryTime || '',
-        image: finalUri, // Gán URL đã xử lý chuẩn vào đây
-        raw: r,
-      };
-    });
-  console.log('[Search] fetched foods:', foodsData);
+    }
+    return {
+      id: r._id,
+      name: r.name,
+      details: r.categories?.map((c: any) => c.name).join(' - ') || '',
+      rating: r.rating ? String(r.rating) : '4.0',
+      delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      time: r.deliveryTime || '',
+      image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+      raw: r,
+    };
+  });
+
+  // Lọc món ăn theo từ khóa
+  const filteredFoods = useMemo(() => {
+    if (search.trim().length === 0) return foods;
+    return foods.filter(f =>
+      f.name.toLowerCase().includes(search.trim().toLowerCase())
+    );
+  }, [search, foods]);
+
+  const filteredRestaurants = useMemo(() => {
+    if (search.trim().length === 0) return restaurants;
+    return restaurants.filter(r =>
+      r.name.toLowerCase().includes(search.trim().toLowerCase())
+    );
+  }, [search, restaurants]);
 
   if (foodsError) {
     console.log('[Search] GET_FOODS error:', foodsError);
@@ -189,7 +204,7 @@ const SearchScreen = () => {
           <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <AntDesign name="left" color="#000" size={24} />
           </TouchableOpacity>
-          <Text style={styles.searchTitle}>Search</Text>
+          <Text style={styles.searchTitle}>Tìm kiếm</Text>
           <TouchableOpacity style={styles.cartButton} onPress={goToCart}>
             <MaterialCommunityIcons name="cart" color="#fff" size={24} />
             <View style={styles.notify}>
@@ -197,13 +212,15 @@ const SearchScreen = () => {
             </View>
           </TouchableOpacity>
         </View>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={styles.searchInput}>
             <AntDesign name="search1" color="#A0A5BA" size={24} />
             <TextInput
-              placeholder={`Search dishes, restaurants`}
+              placeholder={`Tìm kiếm món ăn, nhà hàng...`}
               onChangeText={setSearch}
               value={search}
+              autoCorrect={false}
+              keyboardType='default'
             />
             {search.length > 0 && (
               <Pressable
@@ -217,9 +234,9 @@ const SearchScreen = () => {
         </TouchableWithoutFeedback>
       </View>
 
-      {/* Recent Keywords */}
+      {/* Recent Keywords
       <View style={styles.recentKeywordsContainer}>
-        <Text style={styles.sectionTitle}>Recent Keywords</Text>
+        <Text style={styles.sectionTitle}>Từ khóa gần đây</Text>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -234,7 +251,7 @@ const SearchScreen = () => {
             </TouchableOpacity>
           )}
         />
-      </View>
+      </View> */}
 
       {/* Suggested Restaurants */}
       <View style={styles.suggestedContainer}>
@@ -245,7 +262,7 @@ const SearchScreen = () => {
             justifyContent: 'space-between',
           }}
         >
-          <Text style={styles.sectionTitle}>Suggested Restaurants</Text>
+          <Text style={styles.sectionTitle}>Quán ăn nổi tiếng</Text>
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Suggested Restaurants');
@@ -253,11 +270,11 @@ const SearchScreen = () => {
               setSeeAllVisible(true);
             }}
           >
-            <Text style={styles.seeAllLink}>See All</Text>
+            <Text style={styles.seeAllLink}>Xem tất cả</Text>
           </TouchableOpacity>
         </View>
         <FlatList
-          data={restaurants}
+          data={filteredRestaurants}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}>
@@ -288,7 +305,7 @@ const SearchScreen = () => {
             justifyContent: 'space-between',
           }}
         >
-          <Text style={styles.sectionTitle}>Popular Food</Text>
+          <Text style={styles.sectionTitle}>Món ăn phổ biến</Text>
           <TouchableOpacity
             onPress={() => {
               setSeeAllTitle('Popular Food');
@@ -297,14 +314,14 @@ const SearchScreen = () => {
               setSeeAllVisible(true);
             }}
           >
-            <Text style={styles.seeAllLink}>See All</Text>
+            <Text style={styles.seeAllLink}>Xem tất cả</Text>
           </TouchableOpacity>
         </View>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          // show fetched foods; fall back to empty array while loading
-          data={foods.slice(0, 10)}
+          // show filtered foods; fall back to empty array while loading
+          data={filteredFoods.slice(0, 10)}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => navigation.navigate('FoodDetail', { food: item })}>
