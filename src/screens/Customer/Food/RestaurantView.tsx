@@ -169,7 +169,7 @@ const RestaurantViewScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <AntDesign name="left" color="#000" size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Restaurant View</Text>
+        <Text style={styles.headerTitle}>Quán ăn</Text>
         <TouchableOpacity style={styles.seeMore} onPress={() => setIsFilterVisible(true)}>
           <AntDesign name="ellipsis1" color="#000" size={24} />
         </TouchableOpacity>
@@ -187,7 +187,7 @@ const RestaurantViewScreen = () => {
           <View style={styles.infoBlock}>
              <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
              <Text style={styles.restaurantDescription} numberOfLines={2}>
-               {restaurant.description || "The best food in town awaiting you."}
+               {restaurant.description || "Món ăn ngon, phục vụ tận tình và không gian thoải mái."}
              </Text>
              <View style={styles.restaurantMeta}>
                 <View style={styles.metaItem}>
@@ -196,11 +196,15 @@ const RestaurantViewScreen = () => {
                 </View>
                 <View style={styles.metaItem}>
                     <MaterialCommunityIcons name="truck-delivery-outline" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.deliveryFee ? `$${restaurant.deliveryFee}` : 'Free'}</Text>
+                    <Text style={styles.metaText}>
+                      {restaurant.deliveryFee && restaurant.deliveryFee > 0
+                        ? `${Number(restaurant.deliveryFee).toLocaleString('vi-VN')} ₫`
+                        : 'Miễn phí'}
+                    </Text>
                 </View>
                 <View style={styles.metaItem}>
                     <Feather name="clock" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.deliveryTime || '30 min'}</Text>
+                    <Text style={styles.metaText}>{restaurant.deliveryTime || '30 phút'}</Text>
                 </View>
              </View>
           </View>
@@ -259,7 +263,7 @@ const RestaurantViewScreen = () => {
                     <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.foodCat} numberOfLines={1}>{item.category}</Text>
                     <View style={styles.priceRow}>
-                      <Text style={styles.foodPrice}>${item.price}</Text>
+                      <Text style={styles.foodPrice}>{Number(item.price).toLocaleString('vi-VN')} ₫</Text>
                       <View style={{flexDirection: 'row', alignItems: 'center'}}>     
                       <AntDesign name="staro" color={colors.primary} size={15} />             
                       <Text> {item.rating} </Text>
