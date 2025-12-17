@@ -1,38 +1,139 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Alert, Image, Dimensions } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  Text, 
+  TouchableOpacity, 
+  Alert, 
+  Image, 
+  Dimensions, 
+  StatusBar,
+  ActivityIndicator 
+} from 'react-native';
 import { 
   MapView, 
   Camera, 
   ShapeSource, 
   LineLayer, 
   PointAnnotation, 
-  Callout
+  Callout 
 } from '@maplibre/maplibre-react-native';
 import polyline from '@mapbox/polyline';
-import mapService from '../../../services/mapService';
-import { GOONG_CONFIG } from '../../../constants/config';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
+import mapService from '../../../services/mapService';
+import { GOONG_CONFIG, BASE_URL } from '../../../constants/config';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
-import Entypo from 'react-native-vector-icons/Entypo';
-import Feather from 'react-native-vector-icons/Feather';
 
-const { width, height } = Dimensions.get('window');
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+
+const { width } = Dimensions.get('window');
+
+// 1. INTERFACES
+interface Address {
+  lat: number;
+  lng: number;
+  street: string;
+  city: string;
+}
+
+interface RestaurantInfo {
+  id: string;
+  name: string;
+  avatar: string;
+  address: Address;
+}
+
+interface OrderDetail {
+  id: string;
+  status: string;
+  totalAmount: number;
+  createdAt: string;
+  shippingAddress: Address;
+  shipperId?: string;
+  restaurant: RestaurantInfo;
+}
+
+interface GetOrderData {
+  getOrder: OrderDetail;
+}
+
+// 2. QUERY
+const GET_ORDER_DETAIL = gql`
+  query GetOrder($id: ID!) {
+    getOrder(id: $id) {
+      id
+      status
+      totalAmount
+      createdAt
+      shippingAddress {
+        street
+        city
+        lat
+        lng
+      }
+      shipperId
+      restaurant {
+        id
+        name
+        avatar
+        address {
+            lat
+            lng
+            street
+        }
+      }
+    }
+  }
+`;
 
 const TrackOrderScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  const route = useRoute();
+  const { orderId } = route.params as { orderId: string };
+
   const goongStyleUrl = `https://tiles.goong.io/assets/goong_map_web.json?api_key=${GOONG_CONFIG.MAPTILES_KEY}`;
 
-  const [customerCoord] = useState<[number, number]>([106.68213282293183, 10.76144486890968]); 
-  const [shipperCoord, setShipperCoord] = useState<[number, number]>([106.69763283207385, 10.773163613529778]); 
+  const [customerCoord, setCustomerCoord] = useState<[number, number]>([106.682132, 10.761444]); 
+  const [shipperCoord, setShipperCoord] = useState<[number, number]>([106.697632, 10.773163]); 
   const [routeFeature, setRouteFeature] = useState<any>(null);
   const camera = useRef<React.ComponentRef<typeof Camera>>(null);
 
+  // 3. SỬA LỖI 1: BỎ onCompleted VÀ DÙNG useEffect
+  const { data, loading, error } = useQuery<GetOrderData>(GET_ORDER_DETAIL, {
+    variables: { id: orderId },
+    skip: !orderId,
+    pollInterval: 10000,
+  });
+
+  // Effect thay thế cho onCompleted
+  useEffect(() => {
+    if (data?.getOrder) {
+        const orderData = data.getOrder;
+        
+        // Cập nhật vị trí khách hàng
+        if (orderData.shippingAddress?.lat && orderData.shippingAddress?.lng) {
+            setCustomerCoord([orderData.shippingAddress.lng, orderData.shippingAddress.lat]);
+        }
+        
+        // Cập nhật vị trí Shipper (hoặc quán nếu chưa có shipper)
+        if (!orderData.shipperId && orderData.restaurant?.address?.lat && orderData.restaurant?.address?.lng) {
+             setShipperCoord([orderData.restaurant.address.lng, orderData.restaurant.address.lat]);
+        }
+    }
+  }, [data]);
+
+  const order = data?.getOrder;
+
   useEffect(() => {
     fetchRouteShipperToCustomer();
-  }, [shipperCoord]);
+  }, [shipperCoord, customerCoord]);
 
   const fetchRouteShipperToCustomer = async () => {
     const req = {
@@ -41,34 +142,81 @@ const TrackOrderScreen = () => {
       vehicle: 'bike'
     };
 
-    const res = await mapService.getDirections(req);
+    try {
+        const res = await mapService.getDirections(req);
+        if (res && res.routes && res.routes.length > 0) {
+        const points = polyline.decode(res.routes[0].overview_polyline.points);
+        const coordinates = points.map(point => [point[1], point[0]]);
 
-    if (res && res.routes && res.routes.length > 0) {
-      const points = polyline.decode(res.routes[0].overview_polyline.points);
-      const coordinates = points.map(point => [point[1], point[0]]);
-
-      const routeGeoJSON = {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'LineString', coordinates: coordinates },
-          },
-        ],
-      };
-      setRouteFeature(routeGeoJSON);
+        const routeGeoJSON = {
+            type: 'FeatureCollection',
+            features: [
+            {
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'LineString', coordinates: coordinates },
+            },
+            ],
+        };
+        setRouteFeature(routeGeoJSON);
+        }
+    } catch (err) {
+        console.log("Lỗi lấy đường đi:", err);
     }
   };
 
+  const handleCall = () => Alert.alert("Gọi điện", "Đang kết nối tới tài xế...");
+  
+  const handleMessage = () => {
+    if (!order) return;
+    const receiverId = order.shipperId || order.restaurant?.id; 
+    navigation.navigate('ChatScreen', { 
+        orderId: order.id,
+        receiverId: receiverId,
+        receiverName: order.shipperId ? "Tài xế" : order.restaurant?.name
+    });
+  };
+
+  const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+        pending: 'Chờ xác nhận',
+        preparing: 'Đang chuẩn bị món',
+        shipping: 'Tài xế đang giao',
+        delivered: 'Đã giao thành công',
+        cancelled: 'Đã hủy',
+    };
+    return map[status?.toLowerCase()] || status;
+  };
+
+  if (loading && !order) {
+    return (
+        <View style={[styles.container, {justifyContent:'center', alignItems:'center'}]}>
+            <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+    );
+  }
+
+  // Logic ảnh
+  let displayImage = IMAGES.shipper; 
+  if (!order?.shipperId) {
+      if (order?.restaurant?.avatar) {
+          const uri = order.restaurant.avatar.startsWith('http') 
+              ? order.restaurant.avatar 
+              : `${BASE_URL}${order.restaurant.avatar}`;
+          displayImage = { uri: uri };
+      } else {
+          displayImage = IMAGES.pizza1;
+      }
+  }
+
   return (
     <View style={styles.container}>
-      {/* Nút Back nằm đè lên Map */}
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+      
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
          <AntDesign name="arrowleft" size={24} color="#000" />
       </TouchableOpacity>
 
-      {/* Phần Bản Đồ */}
       <View style={styles.mapContainer}>
         <MapView
             mapStyle={goongStyleUrl}
@@ -78,16 +226,16 @@ const TrackOrderScreen = () => {
             surfaceView={true}
         >
             <Camera
-            ref={camera}
-            defaultSettings={{
-                centerCoordinate: [
-                    (shipperCoord[0] + customerCoord[0]) / 2, 
-                    (shipperCoord[1] + customerCoord[1]) / 2
-                ],
-                zoomLevel: 13
-            }}
-            animationMode="flyTo" 
-            animationDuration={2000} 
+                ref={camera}
+                defaultSettings={{
+                    centerCoordinate: [
+                        (shipperCoord[0] + customerCoord[0]) / 2, 
+                        (shipperCoord[1] + customerCoord[1]) / 2
+                    ],
+                    zoomLevel: 14
+                }}
+                animationMode="flyTo" 
+                animationDuration={2000} 
             />
 
             {routeFeature && (
@@ -105,107 +253,105 @@ const TrackOrderScreen = () => {
             )}
 
             <PointAnnotation id="shipper" coordinate={shipperCoord}>
-            <View style={styles.shipperMarker}>
-                <Feather name="circle" size={20} color="white" />
-            </View>
-            <Callout title="Shipper" />
+                <View style={styles.shipperMarker}>
+                    <Image source={IMAGES.shipper} style={{width: 36, height: 36, borderRadius: 18}} />
+                </View>
+                <Callout title="Shipper" />
             </PointAnnotation>
 
             <PointAnnotation id="customer" coordinate={customerCoord}>
-            <View style={styles.customerMarker}>
-                <Feather name="map-pin" size={20} color="white" />
-            </View>
-            <Callout title="Bạn" />
+                <View style={styles.customerMarker}>
+                    <Feather name="map-pin" size={20} color="white" />
+                </View>
+                <Callout title="Vị trí của bạn" />
             </PointAnnotation>
         </MapView>
       </View>
 
-      {/* Phần Bottom Sheet - Đặt Absolute ở dưới cùng */}
-      <View style={styles.bottomSheet}>
-          {/* Thanh kéo nhỏ (Visual handle) */}
-          <View style={styles.dragHandle} />
+      {order && (
+        <View style={styles.bottomSheet}>
+            <View style={styles.dragHandle} />
 
-          {/* Hàng 1: Thông tin Shipper + Nút bấm */}
-          <View style={styles.shipperRow}>
-             <View style={styles.shipperInfo}>
-                {/* Avatar Shipper */}
-                <Image 
-                    source={IMAGES.shipperIcon || IMAGES.shipperIcon} 
-                    style={styles.shipperAvatar} 
-                />
-                <View>
-                    <Text style={styles.shipperName}>Robert Fox</Text>
-                    <Text style={styles.shipperRole}>Shipper</Text>
+            <View style={styles.shipperRow}>
+                <View style={styles.shipperInfo}>
+                    <Image 
+                        source={displayImage} 
+                        style={styles.shipperAvatar} 
+                    />
+                    <View>
+                        <Text style={styles.shipperName}>
+                            {order.shipperId ? "Tài xế Baemin" : order.restaurant?.name}
+                        </Text>
+                        <Text style={styles.shipperRole}>
+                            {order.shipperId ? "Shipper" : "Nhà hàng"}
+                        </Text>
+                    </View>
                 </View>
-             </View>
-             
-             {/* Các nút hành động */}
-             <View style={styles.actions}>
-                 <TouchableOpacity style={styles.actionBtn}>
-                    <Ionicons name="call" size={24} color={colors.primary} />
-                 </TouchableOpacity>
-                 
-                 <TouchableOpacity 
-                    style={styles.actionBtn}
-                    onPress={() => navigation.navigate('ChatScreen' as never)}
-                 >
-                    <Ionicons name="chatbubble-ellipses" size={24} color={colors.primary} />
-                 </TouchableOpacity>
-             </View>
-          </View>
+                
+                <View style={styles.actions}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
+                        <Ionicons name="call" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionBtn} onPress={handleMessage}>
+                        <Ionicons name="chatbubble-ellipses" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                </View>
+            </View>
 
-          {/* Dòng kẻ phân cách */}
-          {/* <View style={styles.divider} /> */}
+            <View style={styles.orderStatusContainer}>
+                {/* 4. SỬA LỖI 2: Thêm || '' để đảm bảo luôn truyền string */}
+                <Text style={styles.statusTitle}>{getStatusText(order.status || '')}</Text>
+                <Text style={styles.statusSubtitle}>
+                    {order.status === 'shipping' 
+                        ? 'Tài xế đang trên đường giao đến bạn.' 
+                        : 'Vui lòng chờ trong giây lát.'}
+                </Text>
+                
+                <View style={styles.timeInfo}>
+                    <AntDesign name="clockcircleo" size={16} color="#666" />
+                    <Text style={styles.timeText}>Dự kiến: 15 - 20 phút</Text>
+                </View>
 
-          {/* Hàng 2: Thông tin Đơn hàng */}
-          <View style={styles.orderStatusContainer}>
-              <Text style={styles.statusTitle}>Đơn hàng đang đến!</Text>
-              <Text style={styles.statusSubtitle}>Shipper đang cách bạn 2km</Text>
-              <View style={styles.timeInfo}>
-                <AntDesign name="clockcircleo" size={16} color="#666" />
-                <Text style={styles.timeText}>Dự kiến: 5 phút</Text>
-              </View>
-          </View>
-      </View>
+                <View style={{flexDirection: 'row', marginTop: 10, alignItems: 'center'}}>
+                    <MaterialIcons name="location-on" size={16} color={colors.primary} />
+                    <Text style={{marginLeft: 5, color: '#333', flex: 1}} numberOfLines={1}>
+                        {order.shippingAddress?.street}, {order.shippingAddress?.city}
+                    </Text>
+                </View>
+            </View>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  mapContainer: { flex: 1 }, // Map chiếm hết không gian còn lại
+  mapContainer: { flex: 1 }, 
+  
   backButton: {
     position: 'absolute', top: 50, left: 20, zIndex: 10,
     backgroundColor: 'white', padding: 10, borderRadius: 20, elevation: 5,
     shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.1, shadowRadius: 4
   },
+  
   shipperMarker: {
     width: 40, height: 40, justifyContent:'center', alignItems:'center', 
-    backgroundColor: '#333', borderRadius: 20, borderWidth: 2, borderColor: 'white', elevation: 5
+    backgroundColor: '#fff', borderRadius: 20, borderWidth: 2, borderColor: colors.primary, elevation: 5
   },
   customerMarker: {
     width: 40, height: 40, justifyContent:'center', alignItems:'center', 
     backgroundColor: colors.primary, borderRadius: 20, borderWidth: 2, borderColor: 'white', elevation: 5
   },
   
-  // Bottom Sheet Styles
   bottomSheet: {
     position: 'absolute', 
-    bottom: 0, 
-    left: 0, 
-    right: 0,
+    bottom: 0, left: 0, right: 0,
     backgroundColor: 'white', 
-    borderTopLeftRadius: 30, 
-    borderTopRightRadius: 30,
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 30,
-    // Shadow mạnh để nổi lên trên Map
+    borderTopLeftRadius: 30, borderTopRightRadius: 30,
+    paddingHorizontal: 24, paddingTop: 10, paddingBottom: 30,
     elevation: 20,
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: -5 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1, shadowRadius: 10,
   },
   dragHandle: {
       width: 40, height: 5, backgroundColor: '#E1E1E1', borderRadius: 3, 
@@ -220,21 +366,19 @@ const styles = StyleSheet.create({
   shipperAvatar: {
       width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: '#eee'
   },
-  shipperName: { fontSize: 18, fontWeight: 'bold', color: '#181C2E' },
-  shipperRole: { fontSize: 14, color: '#A0A5BA' },
+  shipperName: { fontSize: 16, fontWeight: 'bold', color: '#181C2E' },
+  shipperRole: { fontSize: 13, color: '#A0A5BA' },
   
   actions: { flexDirection: 'row', gap: 15 },
   actionBtn: {
-      width: 50, height: 50, borderRadius: 25,
+      width: 45, height: 45, borderRadius: 22.5,
       backgroundColor: '#fff',
       alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: colors.primary,
   },
 
   orderStatusContainer: {
-      //backgroundColor: '#F6F6F6', // Có thể thêm nền nhẹ nếu muốn tách biệt
-      //borderRadius: 15,
-      //padding: 15
+      marginTop: 5
   },
   statusTitle: { fontSize: 20, fontWeight: 'bold', color: '#181C2E', marginBottom: 5 },
   statusSubtitle: { fontSize: 14, color: '#A0A5BA', marginBottom: 10 },

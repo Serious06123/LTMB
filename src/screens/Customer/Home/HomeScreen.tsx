@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -115,7 +116,7 @@ export default function HomeScreen() {
   // 3. Lấy userId và Location từ Redux
   const { userId, currentLocation } = useSelector((state: any) => state.general);
   const displayAddress = currentLocation?.address || 'Đang tải vị trí...';
-  
+
   // 4. Gọi API lấy thông tin User (Chỉ chạy khi có userId)
   const {
     data: userData,
@@ -139,7 +140,7 @@ export default function HomeScreen() {
 
   // Xử lý dữ liệu nhà hàng
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
-    const originalImage = r.image; 
+    const originalImage = r.image;
     let finalUri = IMAGES.pizza1;
 
     if (originalImage) {
@@ -170,7 +171,9 @@ export default function HomeScreen() {
   const goToSearch = () => {
     navigation.navigate('Search' as never);
   };
-
+  const goToRestaurantView = () => {
+    navigation.navigate('RestaurantView' as never);
+  }
   // --- LOGIC LẤY VỊ TRÍ ---
   const requestLocationPermission = async () => {
     if (Platform.OS === 'ios') {
@@ -210,8 +213,8 @@ export default function HomeScreen() {
           if (data && data.results && data.results.length > 0) {
             const currentAddress = data.results[0].formatted_address;
             dispatch(setLocation({
-                address: currentAddress,
-                coords: { lat: latitude, lng: longitude } // Lưu ý: key khớp với slice (lat/lng)
+              address: currentAddress,
+              coords: { lat: latitude, lng: longitude } // Lưu ý: key khớp với slice (lat/lng)
             }));
           }
         } catch (error) {
@@ -237,7 +240,7 @@ export default function HomeScreen() {
     if (!currentLocation?.address) {
       fetchCurrentLocation();
     }
-  }, [currentLocation]); 
+  }, [currentLocation]);
 
   return (
     <View style={styles.container}>
@@ -252,7 +255,7 @@ export default function HomeScreen() {
               <Text style={styles.deliveryText}>DELIVER TO</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
-                    {displayAddress}
+                  {displayAddress}
                 </Text>
                 <AntDesign
                   style={{ marginLeft: 10 }}
@@ -269,7 +272,7 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           </View>
-          
+
           {/* 5. Hiển thị tên động từ API */}
           <Text style={styles.greetingText}>
             Hey {userName}, {' '}
@@ -304,6 +307,7 @@ export default function HomeScreen() {
             data={categories}
             keyExtractor={item => (item._id ? item._id : String(item._id))}
             renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => navigation.navigate('Food', { category: item.name })}>
               <View style={styles.categoryItem}>
                 <View style={styles.categoryContainer}>
                   <Image
@@ -313,15 +317,16 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.categoryText}>{item.name}</Text>
               </View>
+              </TouchableOpacity>
             )}
             showsHorizontalScrollIndicator={false}
           />
         </View>
       </View>
-      
+
       {/* Restaurants Section */}
       <View style={{ flex: 1 }}>
-         <View style={styles.restaurantsSection}>
+        <View style={styles.restaurantsSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Open Restaurants</Text>
             <TouchableOpacity
@@ -341,7 +346,11 @@ export default function HomeScreen() {
             data={restaurants}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
-              <View style={styles.restaurantItem}>
+              <TouchableOpacity
+                style={styles.restaurantItem}
+                // --- QUAN TRỌNG: Phải truyền { restaurant: item.raw } ---
+                onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}
+              >
                 <View style={styles.restaurantImagePlaceholder}>
                   <Image style={styles.restaurantImage} source={item.image} />
                 </View>
@@ -363,7 +372,7 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
           />
         </View>

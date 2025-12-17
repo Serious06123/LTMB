@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,167 +6,184 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
-import socketService from '../../../services/socketService';
-import { GOONG_CONFIG } from '../../../constants/config';
-import { getToken, Store } from '../../../app/store';
+import { BASE_URL } from '../../../constants/config';
 
-// Local state for conversations (populated from GraphQL: myRunningOrders + last message)
-const CONVERSATIONS: any[] = [];
+// --- APOLLO CLIENT ---
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+
+// 1. ĐỊNH NGHĨA INTERFACE (TYPESCRIPT)
+interface RestaurantInfo {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+interface OrderItem {
+  id: string;
+  status: string;
+  createdAt: string;
+  shipperId?: string;
+  restaurant?: RestaurantInfo;
+  // Bạn có thể thêm field 'lastMessage' nếu backend hỗ trợ trả về tin nhắn cuối
+}
+
+interface MyOrdersData {
+  myOrders: OrderItem[];
+}
+
+// 2. QUERY LẤY DANH SÁCH ĐƠN HÀNG (DÙNG LÀM DANH SÁCH CHAT)
+const GET_CHAT_ORDERS = gql`
+  query GetChatOrders {
+    myOrders {
+      id
+      status
+      createdAt
+      shipperId
+      restaurant {
+        id
+        name
+        avatar
+      }
+    }
+  }
+`;
 
 export default function MessageListScreen() {
-  const navigation = useNavigation();
-  const [convos, setConvos] = useState(CONVERSATIONS);
+  const navigation = useNavigation<any>();
 
-  const backendRoot = GOONG_CONFIG.BASE_URL.replace(/\/api\/?$/, '');
-  const rawToken = getToken();
-  const token = rawToken === null ? undefined : rawToken;
-  const currentUser = Store.getState()?.general?.user as any;
-  const currentUserId = currentUser?._id || currentUser?.id;
+  // 3. GỌI API LẤY DỮ LIỆU
+  const { data, loading, error, refetch } = useQuery<MyOrdersData>(GET_CHAT_ORDERS, {
+    fetchPolicy: 'network-only', // Luôn lấy mới để cập nhật trạng thái đơn
+    pollInterval: 10000, // Tự động cập nhật mỗi 10s (để xem có đơn mới ko)
+  });
 
-  useEffect(() => {
-    // init socket
-    socketService.init(backendRoot, token);
-    const sock = socketService.connect();
+  const orders = data?.myOrders || [];
 
-    const handleIncoming = (msg: any) => {
-      if (!msg || !msg.orderId) return;
-      setConvos(prev => {
-        const idx = prev.findIndex(
-          c => String(c.orderId) === String(msg.orderId),
-        );
-        if (idx === -1) return prev;
-        const updated = [...prev];
-        // increment unread if message is from other user
-        if (String(msg.senderId) !== String(currentUserId)) {
-          updated[idx].unread = (updated[idx].unread || 0) + 1;
-        }
-        updated[idx].lastMessage = msg.content;
-        updated[idx].time = new Date(msg.createdAt).toLocaleTimeString();
-        return updated;
-      });
+  const goBack = () => navigation.goBack();
+
+  // Hàm điều hướng tới ChatScreen
+  const goToChat = (item: OrderItem) => {
+    // Logic xác định người nhận:
+    // Nếu đơn đang giao (shipping) hoặc đã giao (delivered) và có shipperId -> Chat với Shipper
+    // Ngược lại -> Chat với Nhà hàng
+    const isShipperChat = item.shipperId && ['shipping', 'delivered', 'completed'].includes(item.status);
+    
+    const receiverId = isShipperChat ? item.shipperId : item.restaurant?.id;
+    const receiverName = isShipperChat ? "Tài xế Baemin" : item.restaurant?.name;
+
+    navigation.navigate('ChatScreen', {
+      orderId: item.id,
+      receiverId: receiverId,
+      receiverName: receiverName
+    });
+  };
+
+  const getStatusLabel = (status: string) => {
+    const map: Record<string, string> = {
+      pending: 'Chờ xác nhận',
+      preparing: 'Đang chuẩn bị',
+      shipping: 'Đang giao hàng',
+      delivered: 'Đã giao',
+      completed: 'Hoàn tất',
+      cancelled: 'Đã hủy',
     };
+    return map[status] || status;
+  };
 
-    sock.on('message_received', handleIncoming);
+  const renderItem = ({ item }: { item: OrderItem }) => {
+    // Xử lý ảnh đại diện (Ưu tiên ảnh nhà hàng)
+    let avatarSource = IMAGES.pizza1; // Mặc định
+    
+    // Nếu đang chat với shipper (theo logic hiển thị) thì hiện icon shipper
+    if (item.shipperId && ['shipping', 'delivered'].includes(item.status)) {
+         avatarSource = IMAGES.shipperIcon || IMAGES.shipper; // Icon shipper
+    } else if (item.restaurant?.avatar) {
+        // Ảnh nhà hàng
+        const uri = item.restaurant.avatar.startsWith('http') 
+            ? item.restaurant.avatar 
+            : `${BASE_URL}${item.restaurant.avatar}`;
+        avatarSource = { uri };
+    }
 
-    // fetch my running orders and last message per order
-    (async function fetchConvos() {
-      try {
-        const graphqlUrl = `${backendRoot}/graphql`;
-        const userId = currentUserId;
-        if (!userId) return;
-
-        // 1) get orders
-        const q1 = {
-          query: `query MyOrders($userId: ID!) { myRunningOrders(userId: $userId) { id status customerId restaurantId shipperId } }`,
-          variables: { userId },
-        };
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers['token'] = token;
-        const res1 = await fetch(graphqlUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(q1),
-        });
-        const j1 = await res1.json();
-        const orders = j1?.data?.myRunningOrders || [];
-
-        // for each order, fetch last message
-        const convosTmp = [] as any[];
-        for (const o of orders) {
-          const q2 = {
-            query: `query LastMsg($orderId: ID!, $limit: Int) { messages(orderId: $orderId, limit: $limit, offset:0) { _id senderId senderName content createdAt isRead } }`,
-            variables: { orderId: o.id, limit: 1 },
-          };
-          const r2 = await fetch(graphqlUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(q2),
-          });
-          const j2 = await r2.json();
-          const msgs = j2?.data?.messages || [];
-          const last = msgs[0] || null;
-          convosTmp.push({
-            id: o.id,
-            orderId: o.id,
-            name: last?.senderName || `Order ${o.id}`,
-            role: 'Order',
-            lastMessage: last?.content || '—',
-            time: last ? new Date(last.createdAt).toLocaleTimeString() : '-',
-            unread:
-              last &&
-              String(last.senderId) !== String(currentUserId) &&
-              !last.isRead
-                ? 1
-                : 0,
-            avatar: IMAGES.shipperIcon || IMAGES.introman1,
-            isOnline: false,
-            receiverId: o.shipperId || null,
-          });
-        }
-
-        setConvos(convosTmp);
-      } catch (err) {
-        console.warn('fetch convos error', err);
-      }
-    })();
-
-    return () => {
-      sock.off('message_received', handleIncoming);
-      // Keep global socket alive (managed by App.tsx)
-    };
-  }, []);
-
-  const renderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.itemContainer}
-      onPress={() => navigation.navigate('ChatScreen' as never)} // Chuyển sang màn hình Chat chi tiết
-    >
-      <View style={styles.avatarContainer}>
-        <Image source={item.avatar} style={styles.avatar} />
-        {item.isOnline && <View style={styles.onlineDot} />}
-      </View>
-
-      <View style={styles.textContainer}>
-        <View style={styles.nameRow}>
-          <Text style={styles.nameText}>{item.name}</Text>
-          <Text style={styles.roleText}> • {item.role}</Text>
-        </View>
-        <Text style={styles.messageText} numberOfLines={1}>
-          {item.lastMessage}
-        </Text>
-      </View>
-
-      <View style={styles.rightContainer}>
-        <Text style={styles.timeText}>{item.time}</Text>
-        {item.unread > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unread}</Text>
+    return (
+      <TouchableOpacity 
+        style={styles.chatItem} 
+        onPress={() => goToChat(item)}
+      >
+        <Image source={avatarSource} style={styles.avatar} />
+        
+        <View style={styles.contentContainer}>
+          <View style={styles.rowTop}>
+            <Text style={styles.name} numberOfLines={1}>
+                {item.restaurant?.name || "Nhà hàng"}
+            </Text>
+            <Text style={styles.time}>
+                {new Date(parseInt(item.createdAt)).toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'})}
+            </Text>
           </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+          
+          <View style={styles.rowBottom}>
+            <Text style={styles.lastMessage} numberOfLines={1}>
+               Đơn hàng #{item.id.slice(-6)} - {getStatusLabel(item.status)}
+            </Text>
+             {/* Indicator trạng thái đơn hàng (Màu sắc) */}
+             <View style={[styles.statusDot, { 
+                 backgroundColor: item.status === 'cancelled' ? 'red' : 
+                                  item.status === 'completed' ? 'green' : colors.primary 
+             }]} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
+          <AntDesign name="left" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Tin nhắn</Text>
+        <View style={{ width: 45 }} />
       </View>
 
-      <FlatList
-        data={CONVERSATIONS}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {/* CONTENT */}
+      {loading && !orders.length ? (
+          <View style={styles.center}>
+              <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+      ) : (
+          <FlatList
+            data={orders}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.primary}/>
+            }
+            ListEmptyComponent={
+                <View style={styles.center}>
+                    <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
+                    <Text style={{color: '#888', marginTop: 10}}>Chưa có cuộc trò chuyện nào</Text>
+                </View>
+            }
+          />
+      )}
     </SafeAreaView>
   );
 }
@@ -176,69 +193,85 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  center: {
+      flex: 1, 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      marginTop: 50
+  },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#F2F2F2',
+  },
+  backButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: '#ECF0F4',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#181C2E',
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 100, // Tránh Bottom Bar
+    paddingBottom: 20,
   },
-  itemContainer: {
+  chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F2',
   },
-  avatarContainer: { position: 'relative' },
   avatar: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#eee',
   },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#27AE60',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  textContainer: {
+  contentContainer: {
     flex: 1,
-    marginHorizontal: 15,
+    marginLeft: 15,
     justifyContent: 'center',
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  nameText: { fontSize: 16, fontWeight: 'bold', color: '#181C2E' },
-  roleText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
-  messageText: { fontSize: 14, color: '#A0A5BA' },
-  rightContainer: {
-    alignItems: 'flex-end',
+  rowTop: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    height: 40,
+    marginBottom: 5,
   },
-  timeText: { fontSize: 12, color: '#A0A5BA' },
-  unreadBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
+  name: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#181C2E',
+    flex: 1,
+  },
+  time: {
+    fontSize: 12,
+    color: '#A0A5BA',
+  },
+  rowBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  unreadText: { fontSize: 10, color: '#fff', fontWeight: 'bold' },
-  separator: { height: 1, backgroundColor: '#F2F2F2' },
+  lastMessage: {
+    fontSize: 14,
+    color: '#A0A5BA',
+    flex: 1,
+    marginRight: 10,
+  },
+  statusDot: {
+      width: 8, 
+      height: 8, 
+      borderRadius: 4
+  }
 });

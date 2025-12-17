@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Image,
   Pressable,
-  ActivityIndicator, // Thêm để hiển thị loading
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { colors } from '../../../theme';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -19,79 +20,63 @@ import { IMAGES } from '../../../constants/images';
 import SeeAllModal from '../../../components/SeeAllModal';
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
+import { BASE_URL } from '../../../constants/config';
 
-const FoodScreen = () => {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
-  const { category } = (route.params as { category?: string }) || {};
-  const [seeAllVisible, setSeeAllVisible] = useState(false);
-  const [seeAllTitle, setSeeAllTitle] = useState('');
-  const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
+const { width } = Dimensions.get('window');
 
-  const goBack = () => {
-    navigation.goBack();
-  };
-  const goToSearch = () => {
-    navigation.navigate('Search' as never);
-  };
-  const goToFoodDetail = (foodItem: any) => {
-    // Truyền dữ liệu món ăn sang màn hình chi tiết
-    navigation.navigate('FoodDetail', { food: foodItem });
-  };
-
-  // --- 1. Query lấy danh sách món ăn ---
-  const GET_FOODS = gql`
-    query GetFoods($category: String) {
-      getFoods(category: $category) {
-        id
+// --- QUERIES ---
+const GET_FOODS = gql`
+  query GetFoods($category: String) {
+    getFoods(category: $category) {
+      id
+      name
+      price
+      description
+      image
+      rating
+      restaurant {
         name
-        price
-        description
-        image
-        rating
-        # Lưu ý: Backend hiện tại chưa trả về tên Restaurant trong query getFoods
-        # nên tạm thời chúng ta sẽ để trống hoặc ẩn đi.
       }
     }
-  `;
+  }
+`;
 
-  // --- 2. Query lấy danh sách nhà hàng (Giữ nguyên của bạn) ---
-  const GET_RESTAURANTS = gql`
-    query GetRestaurants($category: String) {
-      getRestaurants(category: $category) {
+const GET_RESTAURANTS = gql`
+  query GetRestaurants($category: String) {
+    getRestaurants(category: $category) {
+      _id
+      name
+      rating
+      reviews
+      image
+      deliveryTime
+      deliveryFee
+      isOpen
+      categories {
         _id
         name
-        rating
-        reviews
-        image
-        deliveryTime
-        deliveryFee
-        isOpen
-        categories {
-          _id
-          name
-        }
-        address {
-          street
-          city
-          lat
-          lng
-        }
+      }
+      address {
+        street
+        city
+        lat
+        lng
       }
     }
-  `;
-  interface Food {
+  }
+`;
+
+// --- INTERFACES ---
+interface Food {
   id: string;
   name: string;
   price: number;
   image: string;
   rating: number;
   description?: string;
+  restaurant?: { name: string };
 }
-
-interface GetFoodsData {
-  getFoods: Food[];
-}
+interface GetFoodsData { getFoods: Food[]; }
 
 interface Restaurant {
   _id: string;
@@ -99,197 +84,194 @@ interface Restaurant {
   rating: number;
   reviews?: number;
   image?: string;
-  deliveryTime?: number;
+  deliveryTime?: string;
   deliveryFee?: number;
   isOpen?: boolean;
-  categories: Array<{ _id: string; name: string }>;
-  address: {
-    street: string;
-    city: string;
-    lat: number;
-    lng: number;
-  };
 }
+interface GetRestaurantsData { getRestaurants: Restaurant[]; }
 
-interface GetRestaurantsData {
-  getRestaurants: Restaurant[];
-}
+const FoodScreen = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute();
+ const { category } = (route.params as { category?: string }) || {};
+  
+  const [seeAllVisible, setSeeAllVisible] = useState(false);
+  const [seeAllTitle, setSeeAllTitle] = useState('');
+  const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
 
-  // --- 3. Thực thi Query ---
+  // --- QUERY DATA ---
   const { data: foodData, loading: foodLoading } = useQuery<GetFoodsData>(GET_FOODS, {
     variables: { category: category || 'All' },
-    fetchPolicy: 'cache-and-network', // Đảm bảo luôn lấy dữ liệu mới nhất
+    fetchPolicy: 'cache-and-network',
   });
 
-  const { data: restData } = useQuery<GetRestaurantsData>(GET_RESTAURANTS, {
+  const { data: restData, loading: restLoading } = useQuery<GetRestaurantsData>(GET_RESTAURANTS, {
     variables: { category: category || 'All' },
+    fetchPolicy: 'cache-and-network',
   });
 
-  // --- 4. Xử lý dữ liệu Món ăn (Foods) ---
+  // --- XỬ LÝ DATA ---
   const foodsFromDB = (foodData?.getFoods || []).map((item: any) => ({
     id: item.id,
     name: item.name,
-    // Backend chưa populate restaurant nên tạm thời để chuỗi rỗng hoặc tên mặc định
-    restaurant: '',
+    restaurant: item.restaurant?.name || '',
     price: `$${item.price}`,
-    // Kiểm tra nếu có link ảnh online thì dùng uri, không thì dùng ảnh mặc định local
     image: item.image ? { uri: item.image } : IMAGES.pizza1,
     description: item.description,
-    raw: item, // Giữ lại dữ liệu gốc nếu cần
+    raw: item,
   }));
 
-  // --- 5. Xử lý dữ liệu Nhà hàng (Restaurants) ---
-  const openRestaurantsData = (restData?.getRestaurants || []).map(
-    (r: any, idx: number) => ({
-      id: r._id || idx + 1,
+  const openRestaurantsData = (restData?.getRestaurants || []).map((r: any) => {
+    // Xử lý ảnh (online vs local)
+    let finalUri = IMAGES.pizza1;
+    if (r.image) {
+       finalUri = r.image.startsWith('http') ? { uri: r.image } : { uri: `${BASE_URL}${r.image}` };
+    }
+
+    return {
+      id: r._id,
       name: r.name,
-      image: r.image ? { uri: r.image } : IMAGES.pizza1,
+      image: finalUri,
       rating: r.rating ? String(r.rating) : '4.5',
-      delivery:
-        r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      delivery: r.deliveryFee && r.deliveryFee > 0 ? `$${r.deliveryFee}` : 'Free',
       time: r.deliveryTime || '30 min',
       raw: r,
-    }),
-  );
+    };
+  });
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.foodSearchInfo}>
-        <TouchableOpacity style={styles.pressButton} onPress={goBack}>
-          <AntDesign name="left" color="#000" size={24} />
+  // --- NAVIGATIONS ---
+  const goBack = () => navigation.goBack();
+  const goToSearch = () => navigation.navigate('Search' as never);
+  const goToFoodDetail = (foodItem: any) => navigation.navigate('FoodDetail', { food: foodItem });
+  const goToRestaurantDetail = (item: any) => {
+    navigation.navigate('RestaurantView', { 
+        restaurant: item.raw,
+        initialCategory: category 
+    }); 
+  };
+
+  // --- RENDER HEADER (Chứa Header Top + List Restaurants) ---
+  const renderHeader = () => (
+    <View>
+      {/* 1. Top Header Bar */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity style={styles.circleBtn} onPress={goBack}>
+          <AntDesign name="left" color="#000" size={20} />
         </TouchableOpacity>
 
-        <View style={styles.keywordButton}>
-          <Text style={styles.keywordText}>{category || 'All'}</Text>
-          <FontAwesome name="caret-down" color={colors.primary} size={24} />
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryText}>{category || 'All'}</Text>
+          <FontAwesome name="caret-down" color={colors.primary} size={16} />
         </View>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            alignSelf: 'flex-end',
-            marginLeft: 'auto',
-          }}
-        >
-          <Pressable
-            onPress={goToSearch}
-            style={[styles.pressButton, { backgroundColor: '#000' }]}
-          >
-            <AntDesign name="search1" color="#ffffffff" size={24} />
-          </Pressable>
-          <View style={styles.pressButton}>
-            <MaterialCommunityIcons
-              name="tune-vertical"
-              color={colors.primary}
-              size={30}
-            />
-          </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={[styles.circleBtn, { backgroundColor: '#181C2E', marginRight: 10 }]} onPress={goToSearch}>
+            <AntDesign name="search1" color="#fff" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.circleBtn}>
+            <MaterialCommunityIcons name="tune-vertical" color={colors.primary} size={24} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* --- Section: Popular Foods (Lấy từ DB) --- */}
+      {/* 2. Restaurants Section (Horizontal List) */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>
-          {category ? `${category} Menu` : 'Popular Foods'}
-        </Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Restaurants ({category})</Text>
+          <TouchableOpacity onPress={() => {
+              setSeeAllTitle('Open Restaurants');
+              setSeeAllItems(openRestaurantsData);
+              setSeeAllVisible(true);
+          }}>
+            <Text style={styles.seeAllLink}>See All</Text>
+          </TouchableOpacity>
+        </View>
 
-        {foodLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} />
+        {restLoading ? (
+           <ActivityIndicator color={colors.primary} />
+        ) : openRestaurantsData.length === 0 ? (
+           <Text style={styles.emptyText}>No restaurants found for this category.</Text>
         ) : (
           <FlatList
-            showsVerticalScrollIndicator={false}
-            data={foodsFromDB} // Sử dụng dữ liệu đã map từ DB
-            keyExtractor={item => item.id.toString()}
-            numColumns={2}
-            columnWrapperStyle={{ justifyContent: 'space-between' }} // Căn đều 2 cột
-            ListEmptyComponent={
-              <Text style={{ textAlign: 'center', marginTop: 20, color: colors.gray }}>
-                No foods found.
-              </Text>
-            }
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={openRestaurantsData}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={{ paddingHorizontal: 5 }}
             renderItem={({ item }) => (
-              <View style={styles.card}>
-                <Image source={item.image} style={styles.imagePlaceholder} />
-                <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-                {/* Tạm ẩn subtitle nếu không có tên nhà hàng */}
-                {item.restaurant ? (
-                  <Text style={styles.cardSubtitle}>{item.restaurant}</Text>
-                ) : null}
-
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    width: '100%',
-                    marginTop: 5,
-                  }}
-                >
-                  <Text style={styles.cardPrice}>{item.price}</Text>
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => goToFoodDetail(item.raw)}
-                  >
-                    <Text style={styles.addButtonText}>+</Text>
-                  </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.restaurantCardH} 
+                onPress={() => goToRestaurantDetail(item)}
+              >
+                <Image source={item.image} style={styles.restaurantImageH} />
+                <Text style={styles.restaurantNameH} numberOfLines={1}>{item.name}</Text>
+                <View style={styles.metaRow}>
+                   <View style={styles.metaItem}>
+                      <AntDesign name="star" color={colors.primary} size={12} />
+                      <Text style={styles.metaText}>{item.rating}</Text>
+                   </View>
+                   <View style={styles.metaItem}>
+                      <MaterialCommunityIcons name="truck-delivery-outline" color="#888" size={12} />
+                      <Text style={styles.metaText}>{item.delivery}</Text>
+                   </View>
+                   <View style={styles.metaItem}>
+                      <Feather name="clock" color="#888" size={12} />
+                      <Text style={styles.metaText}>{item.time}</Text>
+                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
           />
         )}
       </View>
 
-      {/* --- Section: Open Restaurants (Lấy từ DB) --- */}
-      <View style={[styles.sectionContainer, { flex: 3 }]}>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Text style={styles.sectionTitle}>Open Restaurants</Text>
-          <TouchableOpacity
-            onPress={() => {
-              setSeeAllTitle('Open Restaurants');
-              setSeeAllItems(openRestaurantsData); // Cập nhật dữ liệu cho Modal
-              setSeeAllVisible(true);
-            }}
-          >
-            <Text style={styles.seeAllLink}>See All</Text>
-          </TouchableOpacity>
+      {/* 3. Foods Title */}
+      <View style={[styles.sectionHeader, { marginTop: 10, marginBottom: 10 }]}>
+         <Text style={styles.sectionTitle}>Popular {category} </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {foodLoading ? (
+        <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : (
         <FlatList
+          data={foodsFromDB}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          columnWrapperStyle={{ justifyContent: 'space-between' }}
           showsVerticalScrollIndicator={false}
-          data={openRestaurantsData}
-          keyExtractor={item => item.id.toString()}
+          ListHeaderComponent={renderHeader} // Gắn Header vào đây để cuộn chung
+          contentContainerStyle={{ paddingBottom: 30 }}
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { marginTop: 50, textAlign: 'center' }]}>
+                No foods found.
+            </Text>
+          }
           renderItem={({ item }) => (
-            <View style={styles.restaurantCard}>
-              <Image source={item.image} style={styles.restaurantImage} />
-              <Text style={styles.restaurantName}>{item.name}</Text>
-              <View style={styles.restaurantMeta}>
-                <View style={styles.restaurantMetaDetails}>
-                  <AntDesign name="staro" color={colors.primary} size={20} />
-                  <Text>{item.rating}</Text>
-                </View>
-                <View style={styles.restaurantMetaDetails}>
-                  <MaterialCommunityIcons
-                    name="truck-fast-outline"
-                    color={colors.primary}
-                    size={20}
-                  />
-                  <Text>{item.delivery}</Text>
-                </View>
-                <View style={styles.restaurantMetaDetails}>
-                  <Feather name="clock" color={colors.primary} size={20} />
-                  <Text>{item.time}</Text>
+            <TouchableOpacity 
+                style={styles.foodCard} 
+                onPress={() => goToFoodDetail(item.raw)}
+            >
+              <Image source={item.image} style={styles.foodImage} />
+              <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.foodRest} numberOfLines={1}>{item.restaurant}</Text>
+              
+              <View style={styles.priceRow}>
+                <Text style={styles.priceText}>{item.price}</Text>
+                <View style={styles.addBtn}>
+                  <AntDesign name="plus" color="#fff" size={16} />
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
-      </View>
+      )}
+
       <SeeAllModal
         visible={seeAllVisible}
         title={seeAllTitle}
@@ -303,127 +285,86 @@ interface GetRestaurantsData {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
-    marginTop: 40,
-    paddingTop: 40,
-    paddingLeft: 20,
-    paddingRight: 20, // Chỉnh lại paddingRight cho cân đối
+    backgroundColor: '#fff',
+    paddingTop: 40, // StatusBar height
+    paddingHorizontal: 20,
   },
-  pressButton: {
-    marginRight: 15,
-    width: 45,
-    height: 45,
-    borderRadius: 50,
-    justifyContent: 'center',
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  // Header Styles
+  headerBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECF0F4',
-  },
-  sectionContainer: {
-    flex: 7,
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
-  sectionTitle: {
-    fontSize: 20,
-    color: colors.black,
-    marginBottom: 10,
-    fontWeight: '600',
+  circleBtn: {
+    width: 45, height: 45, borderRadius: 22.5,
+    backgroundColor: '#ECF0F4',
+    alignItems: 'center', justifyContent: 'center',
   },
-  card: {
-    flex: 0.5, // Để chia đều 2 cột
+  categoryBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: '#EDEDED', borderRadius: 25,
+    paddingHorizontal: 15, paddingVertical: 10,
+  },
+  categoryText: { fontWeight: '600', color: '#181C2E', fontSize: 14 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+
+  // Section Styles
+  sectionContainer: { marginBottom: 15 },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15
+  },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#32343E' },
+  seeAllLink: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  emptyText: { color: '#A0A5BA', fontStyle: 'italic', fontSize: 13 },
+
+  // Restaurant Card Horizontal
+  restaurantCardH: {
+    width: width * 0.7, // Chiều rộng thẻ nhà hàng
+    marginRight: 15,
     backgroundColor: '#fff',
     borderRadius: 15,
-    padding: 10,
-    margin: 5,
-    elevation: 4, // Đổ bóng cho Android
-    shadowColor: '#000', // Đổ bóng cho iOS
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingBottom: 10,
+    // Shadow
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 5, elevation: 3,
   },
-  imagePlaceholder: {
-    width: '100%',
-    height: 100,
-    backgroundColor: colors.gray,
-    borderRadius: 10,
-    marginBottom: 10,
-    resizeMode: 'cover',
+  restaurantImageH: {
+    width: '100%', height: 130, borderRadius: 15, marginBottom: 10, backgroundColor: '#f0f0f0'
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: colors.black,
+  restaurantNameH: {
+    fontSize: 16, fontWeight: 'bold', color: '#181C2E', paddingHorizontal: 10, marginBottom: 5
   },
-  cardSubtitle: {
-    fontSize: 12,
-    color: colors.gray,
-    marginBottom: 4,
+  metaRow: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, gap: 12
   },
-  cardPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  addButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 50,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-  },
-  addButtonText: {
-    color: colors.white,
-    fontWeight: 'bold',
-    fontSize: 18,
-  },
-  restaurantCard: {
-    width: '100%',
-    borderRadius: 11,
-    marginBottom: 20,
-  },
-  restaurantImage: {
-    width: '100%',
-    height: 140,
-    borderRadius: 10,
-    marginBottom: 10,
-    resizeMode: 'cover',
-  },
-  restaurantName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.black,
-  },
-  foodSearchInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  keywordButton: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 15,
-    height: 46,
-    borderWidth: 2,
-    borderColor: '#EDEDED',
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 12, color: '#181C2E' },
+
+  // Food Card Vertical (Grid)
+  foodCard: {
+    width: (width - 55) / 2, // Chia 2 cột, trừ padding
+    backgroundColor: '#fff',
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
+    padding: 12,
+    marginBottom: 15,
+    // Shadow
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
   },
-  keywordText: {
-    color: colors.black,
-    fontWeight: '500',
+  foodImage: {
+    width: '100%', height: 100, borderRadius: 15, marginBottom: 10, backgroundColor: '#f0f0f0', resizeMode: 'cover'
   },
-  restaurantMeta: {
-    flexDirection: 'row',
-    gap: 16,
-    alignItems: 'center',
-    marginTop: 5,
-  },
-  restaurantMetaDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  seeAllLink: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  foodName: { fontSize: 15, fontWeight: 'bold', color: '#32343E', marginBottom: 2 },
+  foodRest: { fontSize: 12, color: '#9796A1', marginBottom: 8 },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  priceText: { fontSize: 16, fontWeight: 'bold', color: '#32343E' },
+  addBtn: {
+    width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center'
+  }
 });
 
 export default FoodScreen;
