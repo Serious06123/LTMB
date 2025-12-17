@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,21 @@ import {
 } from 'react-native';
 import { colors } from '../../../theme';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
 import { IMAGES } from '../../../constants/images';
+import SeeAllModal from '../../../components/SeeAllModal';
+import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
 const FoodScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { category } = (route.params as { category?: string }) || {};
+  const [seeAllVisible, setSeeAllVisible] = useState(false);
+  const [seeAllTitle, setSeeAllTitle] = useState('');
+  const [seeAllItems, setSeeAllItems] = useState<any[]>([]);
   const goBack = () => {
     navigation.goBack();
   };
@@ -25,7 +33,7 @@ const FoodScreen = () => {
   };
   const goToFoodDetail = () => {
     navigation.navigate('FoodDetail' as never);
-  }
+  };
   const popularBurgers = [
     {
       id: 1,
@@ -72,23 +80,47 @@ const FoodScreen = () => {
   ];
 
   const openRestaurants = [
-    {
-      id: 1,
-      name: 'Open Restaurant 1',
-      image: IMAGES.pizza1,
-      rating: '4.5',
-      delivery: 'Free',
-      time: '15 min',
-    },
-    {
-      id: 2,
-      name: 'Open Restaurant 2',
-      image: IMAGES.pizza1,
-      rating: '4.5',
-      delivery: 'Free',
-      time: '15 min',
-    },
+    // will be replaced by backend data
   ];
+
+  const GET_RESTAURANTS = gql`
+    query GetRestaurants($category: String) {
+      getRestaurants(category: $category) {
+        _id
+        name
+        rating
+        reviews
+        image
+        deliveryTime
+        deliveryFee
+        isOpen
+        categories {
+          _id
+          name
+        }
+        address {
+          street
+          city
+          lat
+          lng
+        }
+      }
+    }
+  `;
+
+  const { data: restData } = useQuery(GET_RESTAURANTS);
+  const openRestaurantsData = (restData?.getRestaurants || []).map(
+    (r: any, idx: number) => ({
+      id: idx + 1,
+      name: r.name,
+      image: r.image || IMAGES.pizza1,
+      rating: r.rating ? String(r.rating) : '4.5',
+      delivery:
+        r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      time: r.deliveryTime || '',
+      raw: r,
+    }),
+  );
 
   return (
     <View style={styles.container}>
@@ -99,7 +131,7 @@ const FoodScreen = () => {
         </TouchableOpacity>
 
         <View style={styles.keywordButton}>
-          <Text style={styles.keywordText}>Burger</Text>
+          <Text style={styles.keywordText}>{category || 'Burger'}</Text>
           <FontAwesome name="caret-down" color={colors.primary} size={24} />
         </View>
         <View
@@ -148,7 +180,10 @@ const FoodScreen = () => {
                 }}
               >
                 <Text style={styles.cardPrice}>{item.price}</Text>
-                <TouchableOpacity style={styles.addButton} onPress={goToFoodDetail}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={goToFoodDetail}
+                >
                   <Text style={styles.addButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
@@ -159,10 +194,27 @@ const FoodScreen = () => {
 
       {/* Open Restaurants */}
       <View style={[styles.sectionContainer, { flex: 3 }]}>
-        <Text style={styles.sectionTitle}>Open Restaurants</Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text style={styles.sectionTitle}>Open Restaurants</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setSeeAllTitle('Open Restaurants');
+              setSeeAllItems(openRestaurants);
+              setSeeAllVisible(true);
+            }}
+          >
+            <Text style={styles.seeAllLink}>See All</Text>
+          </TouchableOpacity>
+        </View>
         <FlatList
           showsVerticalScrollIndicator={false}
-          data={openRestaurants}
+          data={openRestaurantsData}
           keyExtractor={item => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.restaurantCard}>
@@ -190,6 +242,12 @@ const FoodScreen = () => {
           )}
         />
       </View>
+      <SeeAllModal
+        visible={seeAllVisible}
+        title={seeAllTitle}
+        items={seeAllItems}
+        onClose={() => setSeeAllVisible(false)}
+      />
     </View>
   );
 };
@@ -354,6 +412,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  seeAllLink: { color: colors.primary, fontSize: 14, fontWeight: '600' },
 });
 
 export default FoodScreen;
