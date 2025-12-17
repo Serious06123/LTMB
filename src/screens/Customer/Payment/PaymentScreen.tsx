@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { gql } from '@apollo/client';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ const { width } = Dimensions.get('window');
 type PaymentMethod = 'cash' | 'qr';
 
 export default function PaymentScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const { totalAmount, selectedShops, itemCount } = (route.params as any) || {
     totalAmount: 0,
@@ -46,27 +46,52 @@ export default function PaymentScreen() {
       }
     }
   `;
-
   const CLEAR_CART = gql`
     mutation ClearCart {
       clearCart
     }
   `;
+  const GET_USER_PROFILE = gql`
+  query GetUserProfile {
+    me {
+      id
+      name
+    }
+  }
+`;
+  const GET_SHIPPERS = gql`
+  query GetAllShippers {
+    # Tùy chỉnh theo schema thực tế của bạn, ví dụ lấy user có role shipper
+    # Ở đây tôi dùng một query giả định dựa trên cấu trúc của bạn
+    getShippers { 
+      id
+    }
+  }
+`;
 
+  interface UserProfile {
+    id: string;
+  }
+
+  interface UserProfileQueryResult {
+    me: UserProfile;
+  }
   const [createOrder, { loading: creating }] = useMutation(CREATE_ORDER);
-
+  const { data: userProfileData } = useQuery<UserProfileQueryResult>(GET_USER_PROFILE);
   const handlePay = async () => {
     try {
-      const items =
-        (selectedShops && selectedShops.length > 0
-          ? selectedShops[0].items
-          : []) || [];
-      const restaurantId =
-        selectedShops && selectedShops.length > 0
-          ? selectedShops[0].shopId
-          : null;
+      const shippers = userProfileData?.me.id || [];
+      let randomShipperId = null;
+      
+      if (shippers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * shippers.length);
+        randomShipperId = shippers[randomIndex];
+      }
+      const items = (selectedShops && selectedShops.length > 0 ? selectedShops[0].items : []) || [];
+      const restaurantId = selectedShops && selectedShops.length > 0 ? selectedShops[0].shopId : null;
       const payload = {
         restaurantId,
+        shipperId: randomShipperId,
         items: items.map((i: any) => ({
           foodId: i.id,
           name: i.name,
