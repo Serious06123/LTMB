@@ -1,139 +1,234 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
-import { colors } from '../../theme';
-import { useQuery } from '@apollo/client/react';
+import React, { useEffect } from 'react';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    FlatList, 
+    TouchableOpacity, 
+    Alert, 
+    RefreshControl,
+    Image 
+} from 'react-native';
 import { gql } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client/react';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors } from '../../theme';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
-const GET_RUNNING_ORDERS = gql`
+// --- 1. INTERFACES ---
+interface Address {
+    street: string;
+    city: string;
+}
+
+interface UserInfo {
+    name: string;
+    address: Address; // Địa chỉ khách/quán
+}
+
+interface RestaurantInfo {
+    name: string;
+    address: Address;
+    image?: string;
+}
+
+interface OrderItem {
+    id: string;
+    totalAmount: number;
+    status: string;
+    shippingAddress: Address; // Địa chỉ giao hàng của đơn (nếu có riêng)
+    restaurantUser: RestaurantInfo; // Thông tin quán (lấy từ resolver map hoặc populate)
+    customerUser: UserInfo;
+    items: { name: string; quantity: number }[];
+}
+
+interface GetAvailableOrdersData {
+    getRunningOrders: OrderItem[];
+}
+
+// --- 2. QUERY & MUTATION ---
+const GET_AVAILABLE_ORDERS = gql`
   query GetRunningOrders {
     getRunningOrders {
       id
-      restaurantUser{
-        name
-        address { street city }
-      }
-      restaurantFood { name }     
       totalAmount
       status
+      # Lấy địa chỉ giao hàng
+      shippingAddress {
+        street
+        city
+      }
+      # Lấy thông tin quán (Giả sử BE trả về restaurantUser hoặc restaurantId populate)
+      restaurantUser {
+        name
+        address {
+            street
+        }
+      }
+      items {
+        name
+        quantity
+      }
     }
   }
 `;
 
-export default function ShipperHomeScreen({ navigation }: any) {
-  const [isOnline, setIsOnline] = useState(false);
-  const toggleSwitch = () => setIsOnline(previousState => !previousState);
+const SHIPPER_ACCEPT_ORDER = gql`
+  mutation ShipperAcceptOrder($orderId: ID!) {
+    shipperAcceptOrder(orderId: $orderId) {
+      id
+      status
+      shipperId
+    }
+  }
+`;
 
-  const { data, loading, error, refetch } = useQuery(GET_RUNNING_ORDERS, {
-    fetchPolicy: 'network-only',
-    skip: !isOnline,
+export default function ShipperHomeScreen() {
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+  
+  // Query danh sách đơn chưa có người nhận
+  const { data, loading, refetch, error } = useQuery<GetAvailableOrdersData>(GET_AVAILABLE_ORDERS, { 
+      fetchPolicy: 'network-only' 
   });
 
-  const handleAcceptOrder = (item: any) => {
-    navigation.navigate('MapScreen', { orderId: item.id, isShipperMode: true });
+  const [acceptOrder, { loading: accepting }] = useMutation(SHIPPER_ACCEPT_ORDER);
+
+  // Auto refresh khi quay lại màn hình này
+  useEffect(() => {
+    if (isFocused) refetch();
+  }, [isFocused]);
+
+  const handleAcceptOrder = (orderId: string) => {
+    Alert.alert("Xác nhận", "Bạn chắc chắn muốn nhận đơn hàng này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Nhận đơn",
+        onPress: async () => {
+          try {
+            await acceptOrder({ variables: { orderId } });
+            Alert.alert("Thành công", "Đã nhận đơn! Vui lòng kiểm tra tab Lịch Sử.");
+            refetch(); // Load lại danh sách để đơn vừa nhận biến mất
+          } catch (err: any) {
+            Alert.alert("Lỗi", err.message || "Không thể nhận đơn");
+          }
+        }
+      }
+    ]);
   };
 
-  const orders = (data && Array.isArray((data as any).getRunningOrders))
-    ? (data as any).getRunningOrders.map((order: any) => ({
-        id: order.id,
-        restaurant: order.restaurantUser?.name || '',
-        foodName: order.restaurantFood?.name || '',
-        address: order.restaurantUser?.address ? `${order.restaurantUser.address.street}, ${order.restaurantUser.address.city}` : '',
-        price: order.totalAmount ? `${order.totalAmount.toLocaleString('vi-VN')}đ` : '',
-        status: order.status,
-      }))
-    : [];
-
-  const renderItem = ({ item }: any) => (
+  const renderItem = ({ item }: { item: OrderItem }) => (
     <View style={styles.card}>
+      {/* Header Card: Tên Quán */}
       <View style={styles.cardHeader}>
-        <Text style={styles.restaurantName} numberOfLines={2}>{item.restaurant}</Text>
+         <View style={styles.iconRestaurant}>
+            <MaterialIcons name="store" size={24} color="#fff" />
+         </View>
+         <View style={{flex: 1, marginLeft: 10}}>
+             <Text style={styles.restaurantName} numberOfLines={1}>
+                {item.restaurantUser?.name || 'Nhà hàng'}
+             </Text>
+             <Text style={styles.restaurantAddress} numberOfLines={1}>
+                {item.restaurantUser?.address?.street || 'Đang cập nhật'}
+             </Text>
+         </View>
+         <Text style={styles.price}>{item.totalAmount?.toLocaleString()}đ</Text>
       </View>
-      <Text style={styles.foodName}>Món ăn: {item.foodName}</Text>
-      <Text style={styles.price}>Giá tiền: {item.price}</Text>
-      <View style={styles.addressRow}>
-        <Text style={styles.addressIcon}>📍</Text>
-        <Text style={styles.address}>{item.address}</Text>
+
+      <View style={styles.divider} />
+
+      {/* Body: Địa chỉ giao */}
+      <View style={styles.bodyRow}>
+          <FontAwesome5 name="map-marker-alt" size={16} color={colors.primary} style={{width: 20}} />
+          <View style={{flex: 1}}>
+              <Text style={styles.label}>Giao đến:</Text>
+              <Text style={styles.addressText}>
+                  {item.shippingAddress?.street}, {item.shippingAddress?.city}
+              </Text>
+          </View>
       </View>
+
+      {/* Footer: Nút nhận */}
       <TouchableOpacity 
-        style={styles.button} 
-        onPress={() => handleAcceptOrder(item)}
+        style={styles.btnAccept} 
+        onPress={() => handleAcceptOrder(item.id)}
+        disabled={accepting}
       >
-        <Text style={styles.buttonText}>NHẬN ĐƠN</Text>
+        <Text style={styles.btnText}>NHẬN ĐƠN NGAY</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header trạng thái */}
-      <View style={[styles.statusHeader, { backgroundColor: isOnline ? colors.primary : colors.gray }]}> 
-        <Text style={styles.statusText}>{isOnline ? 'BẠN ĐANG ONLINE' : 'BẠN ĐANG OFFLINE'}</Text>
-        <Switch
-          trackColor={{ false: '#767577', true: '#81b0ff' }}
-          thumbColor={isOnline ? colors.white : '#f4f3f4'}
-          onValueChange={() => {
-            toggleSwitch();
-            if (!isOnline) refetch();
-          }}
-          value={isOnline}
-        />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+          <Text style={styles.headerTitle}>Săn đơn hàng</Text>
+          <Text style={styles.headerSubtitle}>Các đơn hàng đang chờ tài xế</Text>
       </View>
 
-      {/* Danh sách đơn hàng */}
-      {isOnline ? (
-        loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-        ) : error ? (
-          <View style={styles.offlineContainer}>
-            <Text style={styles.offlineText}>Lỗi tải dữ liệu</Text>
-            <Text style={[styles.offlineText, { color: 'red', marginTop: 8, fontSize: 13 }]}>{error.message}</Text>
+      {error ? (
+          <View style={styles.center}>
+              <Text style={{color: 'red'}}>Lỗi tải dữ liệu!</Text>
+              <TouchableOpacity onPress={() => refetch()}><Text style={{color: 'blue'}}>Thử lại</Text></TouchableOpacity>
           </View>
-        ) : (
+      ) : (
           <FlatList
-            data={orders}
+            data={data?.getRunningOrders || []}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<Text style={styles.offlineText}>Không có đơn hàng nào</Text>}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
+            ListEmptyComponent={
+                <View style={styles.center}>
+                    <MaterialIcons name="delivery-dining" size={60} color="#ccc" />
+                    <Text style={{textAlign: 'center', marginTop: 10, color: '#888'}}>
+                        Hiện chưa có đơn hàng nào cần giao.
+                    </Text>
+                </View>
+            }
           />
-        )
-      ) : (
-        <View style={styles.offlineContainer}>
-          <Text style={styles.offlineText}>Vui lòng bật trạng thái Online để nhận đơn</Text>
-        </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  statusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    paddingTop: 50, // Tránh tai thỏ
+  container: { flex: 1, backgroundColor: '#F2F4F8', padding: 16 },
+  center: { alignItems: 'center', justifyContent: 'center', marginTop: 50 },
+  header: { marginBottom: 15 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#181C2E' },
+  headerSubtitle: { fontSize: 14, color: '#A0A5BA' },
+  
+  card: { 
+      backgroundColor: '#FFF', 
+      borderRadius: 16, 
+      marginBottom: 16, 
+      padding: 16,
+      elevation: 3,
+      shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.1, shadowRadius: 4
   },
-  statusText: { color: colors.white, fontWeight: 'bold', fontSize: 16 },
-  listContent: { padding: 15 },
-  card: {
-    backgroundColor: colors.white,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    elevation: 3,
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  iconRestaurant: { 
+      width: 40, height: 40, borderRadius: 20, 
+      backgroundColor: '#FF7622', alignItems: 'center', justifyContent: 'center' 
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  restaurantName: { fontSize: 18, fontWeight: 'bold', color: colors.black, flex: 1, flexWrap: 'wrap' },
-  price: { fontSize: 16, color: colors.primary, fontWeight: 'bold', marginBottom: 4 },
-  addressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  addressIcon: { fontSize: 14, marginRight: 2 },
-  address: { color: colors.gray, fontSize: 14 },
-  distance: { color: colors.secondary, marginBottom: 10 },
-  button: { backgroundColor: colors.primary, padding: 12, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: colors.white, fontWeight: 'bold' },
-  offlineContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  offlineText: { color: colors.gray, fontSize: 16 },
-  foodName: { fontSize: 15, color: colors.black, marginBottom: 2, fontWeight: 'semibold'},
+  restaurantName: { fontSize: 16, fontWeight: 'bold', color: '#181C2E' },
+  restaurantAddress: { fontSize: 12, color: '#A0A5BA' },
+  price: { fontSize: 16, fontWeight: 'bold', color: colors.primary },
+  
+  divider: { height: 1, backgroundColor: '#F0F5FA', marginVertical: 10 },
+  
+  bodyRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 15 },
+  label: { fontSize: 12, color: '#A0A5BA', marginBottom: 2 },
+  addressText: { fontSize: 14, color: '#181C2E', fontWeight: '500' },
+  
+  btnAccept: { 
+      backgroundColor: colors.primary, 
+      paddingVertical: 12, 
+      borderRadius: 12, 
+      alignItems: 'center' 
+  },
+  btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14, textTransform: 'uppercase' }
 });

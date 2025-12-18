@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'; // Thêm useEffect
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   TouchableOpacity,
   StyleSheet,
@@ -8,9 +8,12 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  ActivityIndicator // Thêm cái này để hiện loading khi lấy tên đường
 } from 'react-native';
 import { Searchbar } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/AntDesign'; // Dùng AntDesign cho tiện
+import Icon from 'react-native-vector-icons/AntDesign';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons'; // Thêm icon định vị
+import { useNavigation, useRoute } from '@react-navigation/native'; // Thêm useRoute
 
 import { 
   MapView, 
@@ -24,6 +27,7 @@ import {
 import polyline from '@mapbox/polyline'; 
 import mapService from '../../../services/mapService';
 import { GOONG_CONFIG } from '../../../constants/config';
+import { colors } from '../../../theme'; // Import màu nếu cần
 
 interface LocationMarker {
   key: string;
@@ -31,16 +35,34 @@ interface LocationMarker {
   title?: string;
 }
 
+// Helper Debounce: Tránh gọi API liên tục khi kéo map
+const debounce = (func: Function, delay: number) => {
+  let timeoutId: any;
+  return (...args: any[]) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, delay);
+  };
+};
+
 const MapScreen = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>(); // Lấy params
+
+  // Kiểm tra xem có phải đang ở chế độ chọn địa chỉ không
+  const isPickingMode = route.params?.isPickingMode || false;
+  const returnScreen = route.params?.returnScreen || null;
+
   const goongStyleUrl = `https://tiles.goong.io/assets/goong_map_web.json?api_key=${GOONG_CONFIG.MAPTILES_KEY}`;
 
-  // 1. Dùng Ref để theo dõi vị trí thực tế (Không gây render lại khi lướt map)
   const currentCenterRef = useRef<[number, number]>([106.68213282293183, 10.76144486890968]);
   const currentZoomRef = useRef<number>(14);
-
-  // 2. Chỉ dùng State để khởi tạo map lần đầu hoặc khi Search xong
-  // (Không update cái này khi lướt map)
   const [initialCenter] = useState<[number, number]>([106.68213282293183, 10.76144486890968]); 
+
+  // State hiển thị địa chỉ đang chọn
+  const [addressText, setAddressText] = useState('Đang xác định vị trí...');
+  const [loadingAddress, setLoadingAddress] = useState(false);
 
   const [txtLng, setTextLng] = useState('');
   const [txtLat, setTextLat] = useState('');
@@ -55,73 +77,90 @@ const MapScreen = () => {
 
   const camera = useRef<React.ComponentRef<typeof Camera>>(null);
 
-  // --- HÀM ZOOM MỚI (Dùng setCamera trực tiếp) ---
+  // --- LOGIC MỚI: LẤY TÊN ĐƯỜNG TỪ TỌA ĐỘ (Reverse Geocoding) ---
+  const fetchAddress = async (lng: number, lat: number) => {
+    setLoadingAddress(true);
+    try {
+      // Gọi API Reverse (lưu ý thứ tự lat, lng tùy API, Goong thường là lat, lng)
+      const res = await mapService.getReverseGeocoding(lat, lng);
+      if (res && res.results && res.results.length > 0) {
+        setAddressText(res.results[0].formatted_address);
+      } else {
+        setAddressText('Vị trí chưa xác định');
+      }
+    } catch (error) {
+      console.log('Reverse geocode error:', error);
+      setAddressText('Không thể lấy tên đường');
+    }
+    setLoadingAddress(false);
+  };
+
+  // Tạo hàm debounce để không spam API
+  const debouncedFetchAddress = useCallback(debounce(fetchAddress, 500), []);
+
   const handleZoomIn = () => {
     const newZoom = currentZoomRef.current + 1;
     if (newZoom > 20) return;
-    
-    // Gọi lệnh trực tiếp vào Camera, không thông qua State
-    camera.current?.setCamera({
-      zoomLevel: newZoom,
-      animationDuration: 300,
-      animationMode: 'easeTo'
-    });
-    currentZoomRef.current = newZoom; // Cập nhật ref thủ công
+    camera.current?.setCamera({ zoomLevel: newZoom, animationDuration: 300, animationMode: 'easeTo' });
+    currentZoomRef.current = newZoom;
   };
 
   const handleZoomOut = () => {
     const newZoom = currentZoomRef.current - 1;
     if (newZoom < 0) return;
-    
-    camera.current?.setCamera({
-      zoomLevel: newZoom,
-      animationDuration: 300,
-      animationMode: 'easeTo'
-    });
+    camera.current?.setCamera({ zoomLevel: newZoom, animationDuration: 300, animationMode: 'easeTo' });
     currentZoomRef.current = newZoom;
   };
 
-  // --- SỬA HÀM NÀY: Chỉ update Ref, KHÔNG set state ---
+  // --- CẬP NHẬT: Gọi lấy địa chỉ khi map dừng di chuyển ---
   const onRegionDidChange = (feature: any) => {
     if (feature.properties && feature.properties.zoomLevel) {
       currentZoomRef.current = feature.properties.zoomLevel;
     }
     if (feature.geometry && feature.geometry.coordinates) {
-      currentCenterRef.current = feature.geometry.coordinates;
+      const coords = feature.geometry.coordinates;
+      currentCenterRef.current = coords;
+      
+      // GỌI HÀM LẤY ĐỊA CHỈ MỚI
+      debouncedFetchAddress(coords[0], coords[1]);
     }
   };
 
-  const onDrawRoute = async (destinationCoord: [number, number]) => {
-    const req = {
-      origin: currentCenterRef.current, // Lấy từ Ref
-      destination: destinationCoord,
-      vehicle: 'car'
+  // --- LOGIC MỚI: XÁC NHẬN CHỌN VỊ TRÍ ---
+  const handleConfirmLocation = () => {
+    if (!returnScreen) return;
+
+    const selectedData = {
+      street: addressText.split(',')[0], // Lấy phần đầu làm tên đường
+      city: 'Hồ Chí Minh',
+      lat: currentCenterRef.current[1],
+      lng: currentCenterRef.current[0]
     };
 
-    const res = await mapService.getDirections(req);
+    // Quay lại màn hình trước kèm dữ liệu
+    navigation.navigate(returnScreen, { selectedAddress: selectedData });
+  };
 
-    if (res && res.routes && res.routes.length > 0) {
-      const points = polyline.decode(res.routes[0].overview_polyline.points);
-      const coordinates = points.map(point => [point[1], point[0]]);
-
-      const routeGeoJSON = {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: coordinates,
-            },
-          },
-        ],
-      };
-      
-      setRouteFeature(routeGeoJSON);
-    } else {
-      Alert.alert("Thông báo", "Không tìm thấy đường đi");
-    }
+  const onDrawRoute = async (destinationCoord: [number, number]) => {
+     // ... (Giữ nguyên logic cũ của bạn)
+     // Code vẽ đường...
+     const req = {
+       origin: currentCenterRef.current,
+       destination: destinationCoord,
+       vehicle: 'car'
+     };
+     const res = await mapService.getDirections(req);
+     if (res && res.routes && res.routes.length > 0) {
+        const points = polyline.decode(res.routes[0].overview_polyline.points);
+        const coordinates = points.map(point => [point[1], point[0]]);
+        setRouteFeature({
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature', properties: {},
+                geometry: { type: 'LineString', coordinates: coordinates },
+            }],
+        });
+     }
   };
 
   const _handleSubmit = async (item: any) => {
@@ -137,15 +176,13 @@ const MapScreen = () => {
       const loc = geocoding.results[0].geometry.location;
       const newCoord: [number, number] = [loc.lng, loc.lat];
 
-      setTextLng(loc.lng.toString());
-      setTextLat(loc.lat.toString());
+      setAddressText(item.description); // Cập nhật text hiển thị
 
       setLocations([
-        { key: 'curr', coord: currentCenterRef.current, title: 'Vị trí của bạn' },
+        { key: 'curr', coord: currentCenterRef.current, title: 'Vị trí cũ' },
         { key: 'dest', coord: newCoord, title: item.description }
       ]);
 
-      // Khi Search xong: Dùng setCamera để bay đến đó
       camera.current?.setCamera({
           centerCoordinate: newCoord,
           zoomLevel: 14,
@@ -153,11 +190,12 @@ const MapScreen = () => {
           animationMode: 'flyTo' 
       });
       
-      // Update Ref để đồng bộ
       currentCenterRef.current = newCoord;
-      currentZoomRef.current = 14;
-
-      onDrawRoute(newCoord);
+      
+      // Nếu không phải chế độ pick, mới vẽ đường
+      if (!isPickingMode) {
+          onDrawRoute(newCoord);
+      }
     }
   };
 
@@ -173,19 +211,6 @@ const MapScreen = () => {
     }
   };
 
-  const handleAddMarker = () => {
-     if (!txtLng || !txtLat) return;
-     const newCoord: [number, number] = [parseFloat(txtLng), parseFloat(txtLat)];
-     setLocations(prev => [...prev, { key: `manual-${Date.now()}`, coord: newCoord, title: 'Điểm mới' }]);
-     
-     camera.current?.setCamera({ 
-         centerCoordinate: newCoord, 
-         zoomLevel: 14,
-         animationDuration: 500,
-         animationMode: 'easeTo'
-     });
-  };
-  
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity onPress={() => _handleSubmit(item)} style={styles.itemSelect}>
       <Text style={{color: '#333'}}>{item.description}</Text>
@@ -202,11 +227,6 @@ const MapScreen = () => {
         surfaceView={true} 
         onRegionDidChange={onRegionDidChange}
       >
-        {/* QUAN TRỌNG: 
-           - Bỏ centerCoordinate={currentLocation} 
-           - Chỉ dùng defaultSettings để set vị trí ban đầu.
-           - Sau đó Camera sẽ tự do di chuyển (Uncontrolled).
-        */}
         <Camera
           ref={camera}
           defaultSettings={{
@@ -217,21 +237,17 @@ const MapScreen = () => {
           animationDuration={2000} 
         />
 
-        {routeFeature && (
+        {routeFeature && !isPickingMode && (
            <ShapeSource id="routeSource" shape={routeFeature}>
               <LineLayer
                 id="routeFill"
-                style={{
-                  lineColor: '#007AFF',
-                  lineWidth: 5,
-                  lineCap: 'round',
-                  lineJoin: 'round',
-                }}
+                style={{ lineColor: '#007AFF', lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
               />
            </ShapeSource>
         )}
 
-        {locations.map((item) => (
+        {/* Chỉ hiện các marker cũ nếu KHÔNG phải chế độ picking (vì picking dùng center pin) */}
+        {!isPickingMode && locations.map((item) => (
           <PointAnnotation
             key={item.key}
             id={item.key}
@@ -245,7 +261,13 @@ const MapScreen = () => {
         ))}
       </MapView>
 
-      {/* --- ZOOM BUTTONS --- */}
+      {/* --- MARKER CỐ ĐỊNH Ở GIỮA (CHO CHẾ ĐỘ PICKING) --- */}
+      {isPickingMode && (
+          <View style={styles.centerMarkerContainer} pointerEvents="none">
+              <MaterialIcons name="location-on" size={40} color="#FF3B30" style={{ marginBottom: 20 }} />
+          </View>
+      )}
+
       <View style={styles.zoomContainer}>
         <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomIn}>
           <Icon name="plus" size={24} color="#333" />
@@ -258,6 +280,9 @@ const MapScreen = () => {
 
       <View style={styles.containerInput}>
         <View style={styles.searchRow}>
+             <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 10, padding: 5, backgroundColor: 'white', borderRadius: 8, elevation: 2}}>
+                <Icon name="arrowleft" size={24} color="#333" />
+             </TouchableOpacity>
              <Searchbar
                 placeholder="Tìm địa điểm..."
                 onChangeText={updateSearch}
@@ -278,21 +303,36 @@ const MapScreen = () => {
               />
             </View>
         )}
-
-        <View style={styles.manualRow}>
-            <TextInput style={styles.inputSmall} placeholder="Lng" onChangeText={setTextLng} value={txtLng} keyboardType="numeric" />
-            <TextInput style={styles.inputSmall} placeholder="Lat" onChangeText={setTextLat} value={txtLat} keyboardType="numeric" />
-            <TouchableOpacity onPress={handleAddMarker} style={styles.btnAdd}><Text style={{color:'white'}}>+</Text></TouchableOpacity>
-        </View>
       </View>
+
+      {/* --- BOTTOM SHEET XÁC NHẬN (CHO CHẾ ĐỘ PICKING) --- */}
+      {isPickingMode && (
+          <View style={styles.bottomSheet}>
+              <Text style={styles.label}>Vị trí đang chọn:</Text>
+              <View style={styles.addressRow}>
+                  {loadingAddress ? (
+                      <ActivityIndicator size="small" color="#007AFF" />
+                  ) : (
+                      <Text style={styles.addressText} numberOfLines={2}>{addressText}</Text>
+                  )}
+              </View>
+              <TouchableOpacity 
+                  style={styles.confirmBtn} 
+                  onPress={handleConfirmLocation}
+                  disabled={loadingAddress}
+              >
+                  <Text style={styles.confirmBtnText}>XÁC NHẬN VỊ TRÍ NÀY</Text>
+              </TouchableOpacity>
+          </View>
+      )}
+
     </View>
   );
 };
 
-// ... (Giữ nguyên phần styles)
 const styles = StyleSheet.create({
   containerInput: {
-    position: 'absolute', top: 50, left: 15, right: 15,
+    position: 'absolute', top: 40, left: 15, right: 15,
     backgroundColor: 'transparent', zIndex: 10
   },
   searchRow: {
@@ -310,15 +350,6 @@ const styles = StyleSheet.create({
   itemSelect: {
     padding: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0'
   },
-  manualRow: {
-      flexDirection: 'row', marginTop: 10, display: 'none'
-  },
-  inputSmall: {
-      backgroundColor: 'white', height: 40, width: 80, borderRadius: 5, marginRight: 5, paddingHorizontal: 5
-  },
-  btnAdd: {
-      backgroundColor: 'blue', width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 5
-  },
   markerContainer: {
     width: 24, height: 24, borderRadius: 12, backgroundColor: 'white',
     justifyContent: 'center', alignItems: 'center', elevation: 2, shadowOpacity: 0.3
@@ -329,7 +360,7 @@ const styles = StyleSheet.create({
   zoomContainer: {
     position: 'absolute',
     right: 15,
-    bottom: 100, 
+    bottom: 200, // Đẩy lên cao hơn chút để tránh BottomSheet
     backgroundColor: 'white',
     borderRadius: 8,
     elevation: 5,
@@ -350,7 +381,38 @@ const styles = StyleSheet.create({
     width: 30,
     height: 1,
     backgroundColor: '#E0E0E0',
-  }
+  },
+  // --- Style Mới ---
+  centerMarkerContainer: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    paddingBottom: 20 // Để đầu kim trỏ đúng giữa
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+  },
+  label: { fontSize: 12, color: '#888', marginBottom: 5 },
+  addressRow: { flexDirection: 'row', marginBottom: 15, alignItems: 'center', minHeight: 40 },
+  addressText: { fontSize: 16, fontWeight: 'bold', color: '#333', lineHeight: 22 },
+  confirmBtn: {
+    backgroundColor: '#007AFF', // Hoặc colors.primary
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center'
+  },
+  confirmBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default MapScreen;

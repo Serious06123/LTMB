@@ -240,8 +240,7 @@ const RestaurantViewScreen = () => {
              </View>
           </View>
         </View>
-
-      {/* Categories Horizontal List (Chỉ hiện các mục có món) */}
+      {/* Restaurant Info */}
       <View style={styles.categoriesContainer}>
         <FlatList
           horizontal
@@ -324,7 +323,7 @@ const RestaurantViewScreen = () => {
       )}
     </View>
   );
-};
+};  
 
 const styles = StyleSheet.create({
   // Giữ nguyên Styles cũ của bạn

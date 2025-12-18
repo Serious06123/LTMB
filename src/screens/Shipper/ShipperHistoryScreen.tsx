@@ -1,144 +1,298 @@
-// src/screens/Shipper/ShipperHistoryScreen.tsx
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons'; // Import icon
-import { colors } from '../../theme'; //
-import { useQuery } from '@apollo/client/react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    TouchableOpacity,
+    RefreshControl,
+    ActivityIndicator,
+    Alert
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { gql } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import { colors } from '../../theme';
 
-const GET_HISTORY_ORDERS = gql`
-  query GetHistoryOrders {
+// --- 1. INTERFACES ---
+interface Address {
+    street: string;
+    city: string;
+}
+
+interface UserInfo {
+    name: string;
+    phone: string;
+}
+
+interface RestaurantInfo {
+    name: string;
+    address: Address;
+}
+
+interface OrderItem {
+    id: string;
+    totalAmount: number;
+    status: string;
+    createdAt: string;
+    shippingAddress: Address;
+    restaurantUser: RestaurantInfo;
+    customerUser: UserInfo;
+}
+
+interface GetShipperOrdersData {
+    myShipperOrders: OrderItem[];
+}
+
+// --- 2. QUERY ---
+// Lưu ý: Backend cần resolver myShipperOrders trả về các đơn có shipperId = user hiện tại
+const GET_SHIPPER_ORDERS = gql`
+  query GetShipperOrders {
     myShippingOrders {
       id
-      createdAt
       totalAmount
       status
-      restaurantUser{name}
-      shippingAddress {street city}
+      createdAt
+      shippingAddress {
+        street
+        city
+      }
+      restaurantUser {
+        name
+        address {
+            street
+        }
+      }
+      customerUser {
+        id        # <--- THÊM ID
+        name
+        phone
+        avatar    # <--- THÊM AVATAR (nếu cần hiển thị)
+      }
     }
   }
 `;
 
-export default function ShipperHistoryScreen() {
-  const { data, loading, error } = useQuery(GET_HISTORY_ORDERS, { fetchPolicy: 'network-only' });
-  const orders = (data && Array.isArray((data as any).myShippingOrders))
-    ? (data as any).myShippingOrders.map((order: any) => ({
-        id: order.id,
-        date: order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : '',
-        restaurant: order.restaurantUser?.name || '',
-        customerAddress: order.shippingAddress ? `${order.shippingAddress.street}, ${order.shippingAddress.city}` : '',
-        total: order.totalAmount ? `${order.totalAmount.toLocaleString('vi-VN')}đ` : '',
-        status: order.status,
-      }))
-    : [];
+interface GetShipperOrdersData {
+    myShippingOrders: OrderItem[];
+}
+// --- 3. HELPER FUNCTIONS ---
+const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+        preparing: 'Chờ quán làm',
+        shipping: 'Đang đi giao',
+        delivered: 'Đã giao xong',
+        cancelled: 'Đã hủy',
+    };
+    return map[status?.toLowerCase()] || status;
+};
 
-  const renderItem = ({ item }: any) => {
-    // Xác định style và text cho từng trạng thái
-    let statusText = '';
-    let statusColor = '';
-    let statusBg = '';
-    let statusIcon = '';
-    switch (item.status) {
-      case 'completed':
-        statusText = 'Hoàn thành';
-        statusColor = 'green';
-        statusBg = '#E8F5E9';
-        statusIcon = 'checkmark-circle';
-        break;
-      case 'delivered':
-        statusText = 'Đã giao';
-        statusColor = '#1976D2';
-        statusBg = '#E3F2FD';
-        statusIcon = 'cube-outline';
-        break;
-      case 'shipping':
-        statusText = 'Đang giao';
-        statusColor = '#F9A825';
-        statusBg = '#FFF8E1';
-        statusIcon = 'bicycle-outline';
-        break;
-      case 'cancelled':
-      default:
-        statusText = 'Đã hủy';
-        statusColor = 'red';
-        statusBg = '#FFEBEE';
-        statusIcon = 'close-circle';
-        break;
+const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+        case 'preparing': return '#FFA500'; // Cam
+        case 'shipping': return '#1E90FF'; // Xanh dương
+        case 'delivered': return '#32CD32'; // Xanh lá
+        case 'cancelled': return '#FF4500'; // Đỏ
+        default: return '#888';
     }
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.orderId}>#{item.id}</Text>
-          <View style={styles.dateRow}>
-             <Ionicons name="calendar-outline" size={14} color={colors.gray} style={{marginRight: 4}} />
-             <Text style={styles.date}>{item.date}</Text>
-          </View>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.infoRow}>
-            <Ionicons name="storefront-outline" size={16} color={colors.secondary} style={{marginRight: 8}} />
-            <Text style={styles.restaurantName}>{item.restaurant}</Text>
-        </View>
-        <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={16} color={colors.gray} style={{marginRight: 8}} />
-            <Text style={styles.address}>Giao đến: {item.customerAddress}</Text>
-        </View>
-        <View style={styles.cardFooter}>
-          <Text style={styles.price}>{item.total}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusBg }]}> 
-            <Ionicons 
-                name={statusIcon} 
-                size={16} 
-                color={statusColor} 
-                style={{marginRight: 4}}
-            />
-            <Text style={[styles.statusText, { color: statusColor }]}> 
-              {statusText}
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  };
+};
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Lịch sử hoạt động</Text>
-      </View>
-      {loading ? (
-        <Text style={{ textAlign: 'center', marginTop: 30 }}>Đang tải...</Text>
-      ) : error ? (
-        <Text style={{ textAlign: 'center', marginTop: 30, color: 'red' }}>Lỗi tải dữ liệu: {error.message}</Text>
-      ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </View>
-  );
+export default function ShipperHistoryScreen() {
+    const navigation = useNavigation<any>();
+    const isFocused = useIsFocused();
+    
+    // Tab State: 'active' (Đang thực hiện) | 'history' (Đã xong)
+    const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+
+    const { data, loading, refetch, error } = useQuery<GetShipperOrdersData>(GET_SHIPPER_ORDERS, {
+        fetchPolicy: 'network-only',
+    });
+
+    // Auto refresh khi quay lại màn hình
+    useEffect(() => {
+        if (isFocused) refetch();
+    }, [isFocused]);
+
+    // --- LỌC DỮ LIỆU THEO TAB ---
+    const filteredOrders = useMemo(() => {
+        const orders = data?.myShippingOrders || [];
+        if (activeTab === 'active') {
+            // Tab Hiện tại: Lấy đơn đang làm (preparing) và đang giao (shipping)
+            return orders.filter(o => ['preparing', 'shipping'].includes(o.status?.toLowerCase()));
+        } else {
+            // Tab Lịch sử: Lấy đơn đã giao hoặc đã hủy
+            return orders.filter(o => ['delivered', 'cancelled'].includes(o.status?.toLowerCase()));
+        }
+    }, [data, activeTab]);
+
+    // --- XỬ LÝ KHI ẤN VÀO ĐƠN ---
+    const handlePressOrder = (item: OrderItem) => {
+        const status = item.status?.toLowerCase();
+
+        if (status === 'shipping') {
+            // Nếu đang giao -> Chuyển qua màn hình theo dõi/bản đồ
+            navigation.navigate('TrackOrderScreen', { orderId: item.id });
+        } else if (status === 'preparing') {
+            // Nếu quán đang làm -> Thông báo
+            Alert.alert(
+                "Đang chuẩn bị",
+                "Nhà hàng đang chuẩn bị món ăn. Vui lòng đợi đến khi trạng thái chuyển sang 'Đang giao' (Shipping) để bắt đầu đi giao."
+            );
+        } else {
+            // Các trạng thái khác (delivered/cancelled) -> Có thể xem chi tiết nếu muốn
+            console.log("Xem chi tiết đơn lịch sử:", item.id);
+        }
+    };
+
+    const renderItem = ({ item }: { item: OrderItem }) => (
+        <TouchableOpacity 
+            style={styles.card}
+            onPress={() => handlePressOrder(item)}
+            activeOpacity={0.8}
+        >
+            <View style={styles.cardHeader}>
+                <View style={styles.rowBetween}>
+                    <Text style={styles.orderId}>#{item.id.slice(-6).toUpperCase()}</Text>
+                    <View style={[styles.badge, { backgroundColor: getStatusColor(item.status) }]}>
+                        <Text style={styles.badgeText}>{getStatusText(item.status)}</Text>
+                    </View>
+                </View>
+                <Text style={styles.date}>{new Date(parseInt(item.createdAt)).toLocaleString()}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* Thông tin Quán */}
+            <View style={styles.infoRow}>
+                <View style={styles.iconWrap}>
+                    <MaterialIcons name="store" size={20} color="#666" />
+                </View>
+                <View style={{flex: 1}}>
+                    <Text style={styles.label}>Lấy hàng tại:</Text>
+                    <Text style={styles.infoText} numberOfLines={1}>{item.restaurantUser?.name}</Text>
+                    <Text style={styles.subText} numberOfLines={1}>{item.restaurantUser?.address?.street}</Text>
+                </View>
+            </View>
+
+            {/* Thông tin Khách */}
+            <View style={[styles.infoRow, { marginTop: 10 }]}>
+                 <View style={styles.iconWrap}>
+                    <FontAwesome5 name="map-marker-alt" size={18} color={colors.primary} />
+                </View>
+                <View style={{flex: 1}}>
+                    <Text style={styles.label}>Giao đến:</Text>
+                    <Text style={styles.infoText} numberOfLines={1}>{item.customerUser?.name} - {item.customerUser?.phone}</Text>
+                    <Text style={styles.subText} numberOfLines={2}>
+                        {item.shippingAddress?.street}, {item.shippingAddress?.city}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.footer}>
+                <Text style={styles.totalLabel}>Tổng tiền thu:</Text>
+                <Text style={styles.totalPrice}>{item.totalAmount?.toLocaleString()}đ</Text>
+            </View>
+
+            {/* Hint text để user biết có thể bấm vào */}
+            {item.status === 'shipping' && (
+                <View style={styles.actionHint}>
+                    <Text style={styles.actionText}>Bấm để đi giao hàng ngay</Text>
+                    <MaterialIcons name="navigate-next" size={20} color="#fff" />
+                </View>
+            )}
+        </TouchableOpacity>
+    );
+
+    return (
+        <SafeAreaView style={styles.container}>
+            {/* Header Tabs */}
+            <View style={styles.header}>
+                <Text style={styles.title}>Quản lý đơn hàng</Text>
+                <View style={styles.tabContainer}>
+                    <TouchableOpacity 
+                        style={[styles.tabBtn, activeTab === 'active' && styles.activeTab]}
+                        onPress={() => setActiveTab('active')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>Hiện tại</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.tabBtn, activeTab === 'history' && styles.activeTab]}
+                        onPress={() => setActiveTab('history')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>Lịch sử</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* List */}
+            {error ? (
+                 <View style={styles.center}>
+                    <Text style={{color: 'red'}}>Lỗi tải dữ liệu!</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredOrders}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderItem}
+                    contentContainerStyle={{ padding: 16 }}
+                    refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
+                    ListEmptyComponent={
+                        <View style={styles.center}>
+                            <FontAwesome5 name="clipboard-list" size={50} color="#ddd" />
+                            <Text style={{ marginTop: 10, color: '#999' }}>
+                                {activeTab === 'active' ? "Bạn chưa nhận đơn nào." : "Chưa có lịch sử đơn hàng."}
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { backgroundColor: colors.white, padding: 20, paddingTop: 50, borderBottomWidth: 1, borderBottomColor: '#EEE', alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: colors.black },
-  listContent: { padding: 15 },
-  card: { backgroundColor: colors.white, borderRadius: 12, padding: 15, marginBottom: 15, elevation: 2 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  orderId: { fontWeight: 'bold', color: colors.black, fontSize: 14 },
-  dateRow: { flexDirection: 'row', alignItems: 'center' },
-  date: { color: colors.gray, fontSize: 13 },
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 10 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  restaurantName: { fontSize: 16, fontWeight: '600', color: colors.secondary },
-  address: { color: colors.gray, fontSize: 14 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 },
-  price: { fontSize: 18, fontWeight: 'bold', color: colors.primary },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  statusText: { fontSize: 12, fontWeight: 'bold' },
+    container: { flex: 1, backgroundColor: '#F5F5F5' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
+    
+    header: { backgroundColor: '#fff', padding: 16, paddingBottom: 0, elevation: 2 },
+    title: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+    
+    tabContainer: { flexDirection: 'row' },
+    tabBtn: { flex: 1, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent', alignItems: 'center' },
+    activeTab: { borderBottomColor: colors.primary },
+    tabText: { fontSize: 16, fontWeight: '600', color: '#888' },
+    activeTabText: { color: colors.primary },
+
+    card: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 15, padding: 15, elevation: 2 },
+    cardHeader: { marginBottom: 10 },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    orderId: { fontWeight: 'bold', fontSize: 16, color: '#333' },
+    date: { fontSize: 12, color: '#888', marginTop: 4 },
+    
+    badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+    badgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
+    divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
+
+    infoRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    iconWrap: { width: 30, alignItems: 'center', marginRight: 8, marginTop: 2 },
+    label: { fontSize: 12, color: '#aaa' },
+    infoText: { fontSize: 14, fontWeight: '600', color: '#333' },
+    subText: { fontSize: 13, color: '#666' },
+
+    footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 },
+    totalLabel: { fontSize: 14, color: '#333' },
+    totalPrice: { fontSize: 18, fontWeight: 'bold', color: colors.primary },
+
+    actionHint: { 
+        marginTop: 12, backgroundColor: colors.primary, 
+        padding: 10, borderRadius: 8, 
+        flexDirection: 'row', justifyContent: 'center', alignItems: 'center' 
+    },
+    actionText: { color: '#fff', fontWeight: 'bold', marginRight: 5 }
 });

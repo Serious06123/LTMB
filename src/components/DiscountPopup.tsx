@@ -31,11 +31,11 @@ const DiscountPopup: React.FC<DiscountPopupProps> = ({ onClose }) => {
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Hurry Offers!</Text>
+        <Text style={styles.title}>Ưu đãi bất ngờ!</Text>
         <Text style={styles.coupon}>#1243CD2</Text>
-        <Text style={styles.description}>Use the coupon get 25% discount</Text>
+        <Text style={styles.description}>Dùng mã giảm giá để nhận ưu đãi 25%</Text>
         <TouchableOpacity style={styles.button} onPress={onClose}>
-          <Text style={styles.buttonText}>GOT IT</Text>
+          <Text style={styles.buttonText}>Lấy mã</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

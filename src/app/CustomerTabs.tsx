@@ -4,7 +4,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { colors } from '../theme';
-
+import { useRoute } from '@react-navigation/native';
 // Import các màn hình của KHÁCH HÀNG
 import HomeScreen from '../screens/Customer/Home/HomeScreen';
 import ProfileScreen from '../screens/Customer/Profile/ProfileScreen';
@@ -14,7 +14,7 @@ const Tab = createBottomTabNavigator();
 
 
 
-export default function CustomerTabs() {
+export default function CustomerTabs({route} :any) {
   return (
     <Tab.Navigator
       screenOptions={{
