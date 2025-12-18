@@ -19,7 +19,6 @@ import Icon from 'react-native-vector-icons/AntDesign';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
 
-// Simple CheckBox component (placed after imports so TouchableOpacity/Icon are available)
 function CheckBox({
   checked,
   onPress,
@@ -37,7 +36,6 @@ function CheckBox({
     </TouchableOpacity>
   );
 }
-// --- 1. CẤU TRÚC DỮ LIỆU ---
 interface Product {
   id: string;
   name: string;
@@ -56,7 +54,6 @@ interface ShopGroup {
   checked: boolean;
 }
 
-// --- GraphQL Types ---
 interface CartItemGQL {
   foodId: string;
   name: string;
@@ -72,7 +69,7 @@ interface MyCartData {
     restaurantId?: string | null;
     items: CartItemGQL[];
     totalAmount?: number;
-  } ;
+  };
 }
 
 interface UpdateCartData {
@@ -95,7 +92,6 @@ interface UpdateCartVars {
   }>;
 }
 
-// Restaurant query type
 interface GetRestaurantData {
   restaurant: {
     _id: string;
@@ -112,8 +108,6 @@ export default function CartScreen() {
     any | null
   >(null);
 
-  // Mutation để lưu giỏ hàng khi rời khỏi trang
-  // Mutation để lưu giỏ hàng khi rời khỏi trang
 
   const UPDATE_CART_MUTATION = gql`
     mutation UpdateCart($restaurantId: ID!, $items: [CartItemInput]!) {
@@ -136,7 +130,6 @@ export default function CartScreen() {
     UPDATE_CART_MUTATION,
   );
 
-  // Query lấy giỏ hàng hiện tại từ server
   const GET_MY_CART = gql`
     query MyCart {
       myCart {
@@ -165,7 +158,6 @@ export default function CartScreen() {
   const incomingNewItems = (route.params as any)?.newItems || [];
   const incomingRestaurantId = (route.params as any)?.restaurantId || null;
 
-  // Track current restaurant id to fetch restaurant info (name)
   const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(
     null,
   );
@@ -188,15 +180,9 @@ export default function CartScreen() {
     skip: !currentRestaurantId,
   } as any);
 
-  // Snapshot of server cart to compare later (declared above)
-
-  // Khi có dữ liệu từ server hoặc incoming items, thực hiện merge
-  // Prevent re-processing the same incoming items
   const processedIncomingRef = React.useRef(false);
-  // Track local merge progress so saves wait until localCart merged
   const localMergeRef = React.useRef(false);
 
-  // Wait helper: resolves when incoming merge and local merge finished or myCart finished loading
   const waitForMerge = () =>
     new Promise<void>(resolve => {
       const hasIncoming = Array.isArray(incomingNewItems)
@@ -230,7 +216,6 @@ export default function CartScreen() {
           console.log('[Cart] waitForMerge resolved');
           return resolve();
         }
-        // timeout after 3s to avoid blocking navigation
         if (Date.now() - start > 3000) {
           clearInterval(iv);
           return resolve();
@@ -238,7 +223,6 @@ export default function CartScreen() {
       }, 50);
     });
 
-  // Effect A: initialize cart from server when available (only if no incoming items to process)
   useEffect(() => {
     if (myCartLoading) return;
     if (processedIncomingRef.current) return; // incoming already handled
@@ -270,11 +254,9 @@ export default function CartScreen() {
 
     setCartData(shopGroup);
     setOriginalServerSnapshot({ restaurantId: serverCart.restaurantId, items });
-    // request restaurant name
     setCurrentRestaurantId(serverCart.restaurantId || null);
   }, [myCartData, myCartLoading]);
 
-  // When restaurantData returns, update shopName in cartData for matching shopId
   useEffect(() => {
     if (!restaurantData?.restaurant) return;
     const rid = restaurantData.restaurant._id;
@@ -289,9 +271,7 @@ export default function CartScreen() {
     );
   }, [restaurantData]);
 
-  // NOTE: render loading/error inside JSX below to avoid breaking Hooks order
 
-  // Effect B: if there are incoming items from navigation, merge them once with server data
   useEffect(() => {
     const inc = Array.isArray(incomingNewItems)
       ? incomingNewItems
@@ -299,7 +279,6 @@ export default function CartScreen() {
       ? [incomingNewItems]
       : [];
     if (inc.length === 0) return;
-    // Wait for server cart to finish loading before merging incoming items.
     if (myCartLoading) return;
     if (processedIncomingRef.current) return;
 
@@ -332,7 +311,9 @@ export default function CartScreen() {
     });
 
     const restId =
-      (server && (server as any).restaurantId !== undefined ? (server as any).restaurantId : undefined) ||
+      (server && (server as any).restaurantId !== undefined
+        ? (server as any).restaurantId
+        : undefined) ||
       incomingRestaurantId ||
       inc[0]?.restaurantId ||
       null;
@@ -370,8 +351,6 @@ export default function CartScreen() {
     }
 
     setCartData(shopGroup);
-    // DO NOT set snapshot to the merged (baseItems) here — keep the original server snapshot
-    // so that saveCartToServer can detect changes and perform an update.
     const serverItems = server && server.items ? server.items : [];
     setOriginalServerSnapshot({
       restaurantId: restId,
@@ -381,12 +360,10 @@ export default function CartScreen() {
       '[Cart] EffectB setOriginalServerSnapshot from server items length=',
       serverItems.length,
     );
-    // set restaurant id to fetch its name
     setCurrentRestaurantId(restId || null);
     processedIncomingRef.current = true;
   }, [incomingNewItems, incomingRestaurantId, myCartData]);
 
-  // Load local cart from AsyncStorage once on mount
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -409,7 +386,6 @@ export default function CartScreen() {
     };
   }, []);
 
-  // Merge loaded local cart into current cartData (only add shops/items that are missing)
   useEffect(() => {
     if (!localCart) return;
     console.log(
@@ -435,13 +411,10 @@ export default function CartScreen() {
       }
       return Array.from(map.values());
     });
-    // clear localCart to avoid re-merging
     setLocalCart(null);
-    // mark merging finished
     localMergeRef.current = false;
   }, [localCart]);
 
-  // --- LOGIC XỬ LÝ (GIỮ NGUYÊN) ---
   const toggleShop = (shopId: string) => {
     const newData = cartData.map(shop => {
       if (shop.shopId === shopId) {
@@ -523,8 +496,6 @@ export default function CartScreen() {
     console.log('[Cart] saveCartToServer START', {
       cartLength: cartData.length,
     });
-    // Chọn shop lưu: ưu tiên shop checked, nếu không có lấy shop đầu tiên có items
-    // Save first shop that has items (regardless of checked state)
     const activeShop = cartData.find(s => s.items.length > 0);
     if (!activeShop) {
       console.log('[Cart] saveCartToServer: no activeShop, nothing to save');
@@ -552,14 +523,12 @@ export default function CartScreen() {
       originalServerSnapshot,
     );
 
-    // Compare with originalServerSnapshot to avoid unnecessary saves
     const server = originalServerSnapshot;
     const changed = (() => {
       if (!server) return items.length > 0; // no server cart before -> changed if we have items
       if (String(server.restaurantId) !== String(restaurantId)) return true;
       const sItems = server.items || [];
       if (sItems.length !== items.length) return true;
-      // compare by foodId and quantity
       for (let it of items) {
         const si = sItems.find(
           (x: any) => String(x.foodId) === String(it.foodId),
@@ -570,7 +539,6 @@ export default function CartScreen() {
       return false;
     })();
 
-    // Always persist full cart locally so multi-shop data is not lost
     try {
       await AsyncStorage.setItem(LOCAL_CART_KEY, JSON.stringify(cartData));
       console.log('[Cart] Persisted cart to AsyncStorage key=', LOCAL_CART_KEY);
@@ -581,7 +549,6 @@ export default function CartScreen() {
     console.log('[Cart] saveCartToServer changed=', changed);
     if (!changed) return;
 
-    // If the active shop is local (no restaurantId) skip server update
     if (!restaurantId || String(restaurantId) === 'local') {
       console.log(
         '[Cart] saveCartToServer skipping server update for local shop=',
@@ -593,9 +560,7 @@ export default function CartScreen() {
     try {
       const res = await updateCart({ variables: { restaurantId, items } });
       console.log('[Cart] updateCart result=', res);
-      // after successful save, update snapshot
       setOriginalServerSnapshot({ restaurantId, items });
-      // optionally refetch server cart
       try {
         await refetchMyCart();
       } catch (e) {
@@ -611,7 +576,6 @@ export default function CartScreen() {
       try {
         await saveCartToServer();
       } catch (e) {
-        // swallow to avoid blocking navigation
       }
     });
     return unsubscribe;
@@ -682,7 +646,6 @@ export default function CartScreen() {
             checked={shop.checked}
             onPress={() => toggleShop(shop.shopId)}
           />
-          {/* THAY ĐỔI: Icon 'shop' */}
           <Icon
             name="car"
             size={18}
@@ -690,10 +653,8 @@ export default function CartScreen() {
             style={{ marginLeft: 8, marginRight: 4 }}
           />
           <Text style={styles.shopName}>{shop.shopName}</Text>
-          {/* THAY ĐỔI: Icon 'right' */}
           <Icon name="right" size={14} color="#999" />
         </View>
-        {/* edit removed */}
       </View>
 
       {shop.items.map(product => (
@@ -712,7 +673,6 @@ export default function CartScreen() {
               </Text>
               <View style={styles.variationTag}>
                 <Text style={styles.variationText}>{product.variation}</Text>
-                {/* THAY ĐỔI: Icon 'down' */}
                 <Icon name="down" size={10} color="#666" />
               </View>
               <View style={styles.priceRow}>
@@ -722,7 +682,6 @@ export default function CartScreen() {
                 <View style={styles.quantityStepper}>
                   <TouchableOpacity
                     style={styles.stepBtn}
-                    //nếu xuống còn 0 thì bỏ item khỏi giỏ hàng
                     onPress={() => {
                       if (product.quantity === 1) {
                         Alert.alert(
@@ -761,7 +720,6 @@ export default function CartScreen() {
           </View>
 
           <View style={styles.voucherRow}>
-            {/* THAY ĐỔI: Icon 'tags' */}
             <Icon name="tags" size={16} color={colors.primary} />
             <Text style={styles.voucherText}>Giảm 15k phí vận chuyển</Text>
           </View>
@@ -800,7 +758,6 @@ export default function CartScreen() {
                 navigation.goBack();
               }}
             >
-              {/* THAY ĐỔI: Icon 'arrowleft' */}
               <Icon name="arrowleft" size={24} color={colors.primary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>
@@ -824,7 +781,6 @@ export default function CartScreen() {
                 onPress={toggleSelectAll}
                 style={{ flexDirection: 'row', alignItems: 'center' }}
               >
-                {/* THAY ĐỔI: Icon 'closecircleo' và 'checksquareo' */}
                 {getSelectedCount() > 0 ? (
                   <Icon name="closecircleo" size={20} color={colors.primary} />
                 ) : (
@@ -877,7 +833,6 @@ export default function CartScreen() {
                     (navigation as any).navigate('Payment' as never, {
                       currentRestaurantId,
                       totalAmount: getTotalPrice(),
-      
                     });
                   }
                 }}

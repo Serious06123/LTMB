@@ -18,11 +18,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Alert } from 'react-native';
 
-// --- APOLLO CLIENT IMPORTS ---
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
-
-// TypeScript interface for query response
 interface FoodDetailResponse {
   getFood: {
     id: string;
@@ -106,12 +103,10 @@ const FoodDetailScreen = () => {
     GET_FOOD_DETAIL_QUERY,
     {
       variables: { id: idToFetch },
-      skip: !idToFetch, // Không gọi nếu không có ID
-      fetchPolicy: 'network-only', // Luôn lấy dữ liệu mới nhất
+      skip: !idToFetch,
+      fetchPolicy: 'network-only',
     },
   );
-
-  // NOTE: we now navigate to Cart with the item in params and let Cart handle merging/saving
 
   const foodData = data?.getFood;
   const reviewsData = data?.getFoodReviews || [];
@@ -121,7 +116,6 @@ const FoodDetailScreen = () => {
   const handleIncrease = () => setQuantity(q => q + 1);
   const handleDecrease = () => setQuantity(q => (q > 1 ? q - 1 : 1));
 
-  // Loading View
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -131,7 +125,6 @@ const FoodDetailScreen = () => {
     );
   }
 
-  // Error View
   if (error || !foodData) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -148,29 +141,34 @@ const FoodDetailScreen = () => {
     );
   }
 
-  // Calculate Price
   const totalPrice = (foodData.price * quantity).toFixed(1);
 
   const handleAddToCart = async () => {
-    // Chuẩn bị item theo CartItemInput
+    const restaurantId =
+      foodData.restaurant?._id || (foodData.restaurant as any)?.id || null;
+
+    if (!restaurantId) {
+      Alert.alert('Lỗi', 'Không thể thêm vào giỏ: không xác định nhà hàng.');
+      return;
+    }
+
     const item = {
       foodId: foodData.id,
       name: foodData.name,
       price: foodData.price,
       quantity,
       image: foodData.image || '',
+      restaurantId,
     };
 
-    // Điều hướng về Cart và truyền item mới để Cart thực hiện merge với DB
     (navigation as any).navigate('Cart', {
       newItems: [item],
-      restaurantId: foodData.restaurant?._id || null,
+      restaurantId,
     });
   };
 
   return (
     <View style={styles.container}>
-      {/* --- HEADER --- */}
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <AntDesign name="left" color="#000" size={24} />
@@ -182,7 +180,6 @@ const FoodDetailScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* --- IMAGE & FAVORITE --- */}
         <View style={styles.imageContainer}>
           <Image
             source={foodData.image ? { uri: foodData.image } : IMAGES.pizza1}
@@ -200,7 +197,6 @@ const FoodDetailScreen = () => {
             )}
           </Pressable>
 
-          {/* Label Nhà hàng (Lấy từ DB) */}
           <View style={styles.restaurantLabel}>
             <Image
               source={
@@ -221,14 +217,12 @@ const FoodDetailScreen = () => {
           </View>
         </View>
 
-        {/* --- FOOD INFO --- */}
         <View style={styles.infoContainer}>
           <Text style={styles.foodTitle}>{foodData.name}</Text>
           <Text style={styles.foodDescription}>
             {foodData.description || 'Chưa có mô tả cho món ăn này.'}
           </Text>
 
-          {/* Meta Info (Rating, Ship, Time) - Lấy từ DB */}
           <View style={styles.restaurantMeta}>
             <View style={styles.restaurantMetaDetails}>
               <AntDesign name="star" color={colors.primary} size={20} />
@@ -255,9 +249,6 @@ const FoodDetailScreen = () => {
             </View>
           </View>
 
-         
-
-          {/* --- REVIEWS LIST (Dữ liệu thật) --- */}
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>
               REVIEWS ({reviewsData.length})
@@ -310,12 +301,15 @@ const FoodDetailScreen = () => {
         </View>
       </ScrollView>
 
-      {/* --- BOTTOM ACTION --- */}
       <View style={styles.priceContainer}>
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>{Number(totalPrice) % 1 === 0
+          <Text style={styles.priceText}>
+            {Number(totalPrice) % 1 === 0
               ? `${Number(totalPrice).toLocaleString('vi-VN')} ₫`
-              : `${Number(totalPrice).toLocaleString('vi-VN', { minimumFractionDigits: 1 })} ₫`}</Text>
+              : `${Number(totalPrice).toLocaleString('vi-VN', {
+                  minimumFractionDigits: 1,
+                })} ₫`}
+          </Text>
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               style={styles.quantityButton}

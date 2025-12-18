@@ -17,12 +17,9 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Filter from '../../../components/Filter';
 
-// --- GRAPHQL ---
 import { gql } from '@apollo/client';
 import { useQuery } from '@apollo/client/react';
 import { BASE_URL } from '../../../constants/config';
-
-// 1. INTERFACES
 interface Category {
   _id: string;
   name: string;
@@ -43,7 +40,6 @@ interface GetFoodsByRestaurantData {
   getFoodsByRestaurant: FoodItem[];
 }
 
-// 2. QUERY: Lấy TOÀN BỘ món ăn của nhà hàng (không truyền category để lấy hết)
 const GET_ALL_FOODS_BY_RESTAURANT = gql`
   query GetFoodsByRestaurant($restaurantId: ID!) {
     getFoodsByRestaurant(restaurantId: $restaurantId) {
@@ -85,14 +81,12 @@ const RestaurantViewScreen = () => {
 
   // --- FETCH DATA ---
 
-  // A. Lấy tất cả danh mục hệ thống (để sắp xếp thứ tự cho đẹp nếu cần)
   const { data: catData } = useQuery<GetCategoriesData>(GET_CATEGORIES);
 
-  // B. Lấy TOÀN BỘ món ăn của nhà hàng
   const restaurantIdToFetch = restaurant?.accountId || restaurant?._id;
   const { data: foodData, loading: foodLoading } =
     useQuery<GetFoodsByRestaurantData>(GET_ALL_FOODS_BY_RESTAURANT, {
-      variables: { restaurantId: restaurantIdToFetch }, // Không truyền category để lấy tất cả
+      variables: { restaurantId: restaurantIdToFetch },
       skip: !restaurantIdToFetch,
       fetchPolicy: 'cache-and-network',
     });
@@ -149,7 +143,6 @@ const RestaurantViewScreen = () => {
     }
   }, [initialCategory, activeCategories]);
 
-  // --- NAVIGATIONS ---
   const goBack = () => navigation.goBack();
   const goToFoodDetail = (foodItem: any) => {
     const foodWithRestaurant = { ...foodItem, restaurant: restaurant };
@@ -195,57 +188,78 @@ const RestaurantViewScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <AntDesign name="left" color="#000" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quán ăn</Text>
-        <TouchableOpacity style={styles.seeMore} onPress={() => setIsFilterVisible(true)}>
+        <TouchableOpacity
+          style={styles.seeMore}
+          onPress={() => setIsFilterVisible(true)}
+        >
           <AntDesign name="ellipsis1" color="#000" size={24} />
         </TouchableOpacity>
       </View>
 
-      {/* Restaurant Info */}
       <View style={styles.restaurantHeaderWrapper}>
-          <View style={styles.imageContainer}>
-            <Image source={restaurantImage} style={styles.imagePlaceholder} resizeMode="cover" />
-            <Pressable onPress={() => setIsFavorite(!isFavorite)} style={styles.favoriteButton}>
-              {isFavorite ? <AntDesign name="heart" color="#ff0000" size={20} /> : <Feather name="heart" color="#ffffffff" size={20} />}
-            </Pressable>
-          </View>
-          
-          <View style={styles.infoBlock}>
-             <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
-             <Text style={styles.restaurantDescription} numberOfLines={2}>
-               {restaurant.description || "Món ăn ngon, phục vụ tận tình và không gian thoải mái."}
-             </Text>
-             <View style={styles.restaurantMeta}>
-                <View style={styles.metaItem}>
-                    <AntDesign name="star" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.rating || 4.5}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                    <MaterialCommunityIcons name="truck-delivery-outline" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>
-                      {restaurant.deliveryFee && restaurant.deliveryFee > 0
-                        ? `${Number(restaurant.deliveryFee).toLocaleString('vi-VN')} ₫`
-                        : 'Miễn phí'}
-                    </Text>
-                </View>
-                <View style={styles.metaItem}>
-                    <Feather name="clock" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.deliveryTime || '30 phút'}</Text>
-                </View>
-             </View>
+        <View style={styles.imageContainer}>
+          <Image
+            source={restaurantImage}
+            style={styles.imagePlaceholder}
+            resizeMode="cover"
+          />
+          <Pressable
+            onPress={() => setIsFavorite(!isFavorite)}
+            style={styles.favoriteButton}
+          >
+            {isFavorite ? (
+              <AntDesign name="heart" color="#ff0000" size={20} />
+            ) : (
+              <Feather name="heart" color="#ffffffff" size={20} />
+            )}
+          </Pressable>
+        </View>
+
+        <View style={styles.infoBlock}>
+          <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
+          <Text style={styles.restaurantDescription} numberOfLines={2}>
+            {restaurant.description ||
+              'Món ăn ngon, phục vụ tận tình và không gian thoải mái.'}
+          </Text>
+          <View style={styles.restaurantMeta}>
+            <View style={styles.metaItem}>
+              <AntDesign name="star" color={colors.primary} size={16} />
+              <Text style={styles.metaText}>{restaurant.rating || 4.5}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <MaterialCommunityIcons
+                name="truck-delivery-outline"
+                color={colors.primary}
+                size={16}
+              />
+              <Text style={styles.metaText}>
+                {restaurant.deliveryFee && restaurant.deliveryFee > 0
+                  ? `${Number(restaurant.deliveryFee).toLocaleString(
+                      'vi-VN',
+                    )} ₫`
+                  : 'Miễn phí'}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Feather name="clock" color={colors.primary} size={16} />
+              <Text style={styles.metaText}>
+                {restaurant.deliveryTime || '30 phút'}
+              </Text>
+            </View>
           </View>
         </View>
-      {/* Restaurant Info */}
+      </View>
+
       <View style={styles.categoriesContainer}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={activeCategories} // Dùng list đã lọc
+          data={activeCategories}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -273,44 +287,60 @@ const RestaurantViewScreen = () => {
         />
       </View>
 
-      {/* Foods Grid */}
       <View style={styles.foodsContainer}>
-          <Text style={styles.sectionTitle}>
-              {selectedCategory === 'All' ? 'Full Menu' : `${selectedCategory} Menu`} ({displayedFoods.length})
-          </Text>
-          
-          {foodLoading ? (
-             <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 20}} />
-          ) : (
-              <FlatList
-                showsVerticalScrollIndicator={false}
-                numColumns={2}
-                columnWrapperStyle={{justifyContent: 'space-between'}}
-                data={displayedFoods} // Hiển thị list đã lọc client-side
-                keyExtractor={(item) => item.id}
-                ListEmptyComponent={
-                    <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>
-                        No foods found.
-                    </Text>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.foodItem} onPress={() => goToFoodDetail(item)}>
-                 
-                    <Image source={item.image} style={styles.foodImage} />
-                    <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.foodCat} numberOfLines={1}>{item.category}</Text>
-                    <View style={styles.priceRow}>
-                      <Text style={styles.foodPrice}>{Number(item.price).toLocaleString('vi-VN')} ₫</Text>
-                      <View style={{flexDirection: 'row', alignItems: 'center'}}>     
-                      <AntDesign name="staro" color={colors.primary} size={15} />             
-                      <Text> {item.rating} </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                )}
-                contentContainerStyle={{paddingBottom: 20}}
-              />
-          )}
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === 'All'
+            ? 'Full Menu'
+            : `${selectedCategory} Menu`}{' '}
+          ({displayedFoods.length})
+        </Text>
+
+        {foodLoading ? (
+          <ActivityIndicator
+            size="large"
+            color={colors.primary}
+            style={{ marginTop: 20 }}
+          />
+        ) : (
+          <FlatList
+            showsVerticalScrollIndicator={false}
+            numColumns={2}
+            columnWrapperStyle={{ justifyContent: 'space-between' }}
+            data={displayedFoods} // Hiển thị list đã lọc client-side
+            keyExtractor={item => item.id}
+            ListEmptyComponent={
+              <Text
+                style={{ textAlign: 'center', marginTop: 20, color: '#999' }}
+              >
+                No foods found.
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.foodItem}
+                onPress={() => goToFoodDetail(item)}
+              >
+                <Image source={item.image} style={styles.foodImage} />
+                <Text style={styles.foodName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={styles.foodCat} numberOfLines={1}>
+                  {item.category}
+                </Text>
+                <View style={styles.priceRow}>
+                  <Text style={styles.foodPrice}>
+                    {Number(item.price).toLocaleString('vi-VN')} ₫
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <AntDesign name="staro" color={colors.primary} size={15} />
+                    <Text> {item.rating} </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          />
+        )}
       </View>
 
       {isFilterVisible && (
@@ -323,10 +353,9 @@ const RestaurantViewScreen = () => {
       )}
     </View>
   );
-};  
+};
 
 const styles = StyleSheet.create({
-  // Giữ nguyên Styles cũ của bạn
   container: {
     flex: 1,
     backgroundColor: '#fff',

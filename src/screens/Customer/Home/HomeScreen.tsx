@@ -27,8 +27,6 @@ import mapService from '../../../services/mapService';
 import { setLocation } from '../../../features/general/generalSlice';
 import { BASE_URL } from '../../../constants/config';
 
-// --- GRAPHQL QUERIES ---
-
 const GET_CATEGORIES = gql`
   query GetCategories {
     getCategories {
@@ -39,7 +37,6 @@ const GET_CATEGORIES = gql`
   }
 `;
 
-// 1. Query lấy thông tin User (Bắt buộc phải truyền $id)
 const GET_USERS = gql`
   query getUserProfile($id: ID!) {
     getUserProfile(id: $id) {
@@ -49,7 +46,6 @@ const GET_USERS = gql`
   }
 `;
 
-// 2. Định nghĩa lại Interface cho đúng cấu trúc trả về
 interface UserProfileData {
   getUserProfile: {
     _id: string;
@@ -113,32 +109,27 @@ export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
 
-  // 3. Lấy userId và Location từ Redux
-  const { userId, currentLocation } = useSelector((state: any) => state.general);
+  const { userId, currentLocation } = useSelector(
+    (state: any) => state.general,
+  );
   const displayAddress = currentLocation?.address || 'Đang tải vị trí...';
 
-  // 4. Gọi API lấy thông tin User (Chỉ chạy khi có userId)
-  const {
-    data: userData,
-    loading: userLoading,
-  } = useQuery<UserProfileData>(GET_USERS, {
-    variables: { id: userId },
-    skip: !userId, // Bỏ qua nếu chưa có userId (tránh lỗi)
-  });
+  const { data: userData, loading: userLoading } = useQuery<UserProfileData>(
+    GET_USERS,
+    {
+      variables: { id: userId },
+      skip: !userId,
+    },
+  );
 
   // Lấy tên người dùng, nếu chưa tải xong thì hiện "Loading..."
   const userName = userData?.getUserProfile?.name || 'Customer';
 
-  const {
-    data: catData,
-  } = useQuery(GET_CATEGORIES);
+  const { data: catData } = useQuery(GET_CATEGORIES);
 
-  const {
-    data: restData,
-    error: restError,
-  } = useQuery<GetRestaurantsData>(GET_RESTAURANTS);
+  const { data: restData, error: restError } =
+    useQuery<GetRestaurantsData>(GET_RESTAURANTS);
 
-  // Xử lý dữ liệu nhà hàng
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
     const originalImage = r.image;
     let finalUri = IMAGES.pizza1;
@@ -155,7 +146,8 @@ export default function HomeScreen() {
       name: r.name,
       details: r.categories?.map((c: any) => c.name).join(' - ') || '',
       rating: r.rating ? String(r.rating) : '4.0',
-      delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      delivery:
+        r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
       time: r.deliveryTime || '',
       image: finalUri,
       raw: r,
@@ -173,8 +165,8 @@ export default function HomeScreen() {
   };
   const goToRestaurantView = () => {
     navigation.navigate('RestaurantView' as never);
-  }
-  // --- LOGIC LẤY VỊ TRÍ ---
+  };
+
   const requestLocationPermission = async () => {
     if (Platform.OS === 'ios') {
       const auth = await Geolocation.requestAuthorization('whenInUse');
@@ -185,12 +177,12 @@ export default function HomeScreen() {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
-            title: "Location Permission",
-            message: "App needs access to your location.",
-            buttonNeutral: "Ask Me Later",
-            buttonNegative: "Cancel",
-            buttonPositive: "OK"
-          }
+            title: 'Location Permission',
+            message: 'App needs access to your location.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
@@ -206,25 +198,30 @@ export default function HomeScreen() {
     if (!hasPermission) return;
 
     Geolocation.getCurrentPosition(
-      async (position) => {
+      async position => {
         const { latitude, longitude } = position.coords;
         try {
-          const data = await mapService.getReverseGeocoding(latitude, longitude);
+          const data = await mapService.getReverseGeocoding(
+            latitude,
+            longitude,
+          );
           if (data && data.results && data.results.length > 0) {
             const currentAddress = data.results[0].formatted_address;
-            dispatch(setLocation({
-              address: currentAddress,
-              coords: { lat: latitude, lng: longitude } // Lưu ý: key khớp với slice (lat/lng)
-            }));
+            dispatch(
+              setLocation({
+                address: currentAddress,
+                coords: { lat: latitude, lng: longitude },
+              }),
+            );
           }
         } catch (error) {
-          console.error("API Error:", error);
+          console.error('API Error:', error);
         }
       },
-      (error) => {
-        console.log("GPS Error:", error.code, error.message);
+      error => {
+        console.log('GPS Error:', error.code, error.message);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
   };
   // ------------------------------------------------------------------
@@ -244,7 +241,6 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Section */}
       <View style={{ flex: 1 }}>
         <View style={styles.headerSection}>
           <View style={styles.deliveryInfo}>
@@ -254,7 +250,10 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'column' }}>
               <Text style={styles.deliveryText}>Giao đến</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text numberOfLines={1} style={{ maxWidth: 200, fontWeight: 'bold' }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ maxWidth: 200, fontWeight: 'bold' }}
+                >
                   {displayAddress}
                 </Text>
                 <AntDesign
@@ -267,13 +266,11 @@ export default function HomeScreen() {
             </View>
             <TouchableOpacity style={styles.cartButton} onPress={goToCart}>
               <MaterialCommunityIcons name="cart" color="#fff" size={24} />
-              
             </TouchableOpacity>
           </View>
 
-          {/* 5. Hiển thị tên động từ API */}
           <Text style={styles.greetingText}>
-            Xin chào {userName} {' '}
+            Xin chào {userName}{' '}
             {/* <Text style={{ fontWeight: 'bold' }}>Good Afternoon!</Text> */}
           </Text>
 
@@ -283,7 +280,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Categories Section */}
         <View style={styles.categoriesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Danh mục</Text>
@@ -305,16 +301,20 @@ export default function HomeScreen() {
             data={categories}
             keyExtractor={item => (item._id ? item._id : String(item._id))}
             renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => navigation.navigate('Food', { category: item.name })}>
-              <View style={styles.categoryItem}>
-                <View style={styles.categoryContainer}>
-                  <Image
-                    source={item.image ? { uri: item.image } : IMAGES.pizza1}
-                    style={styles.categoryImage}
-                  />
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate('Food', { category: item.name })
+                }
+              >
+                <View style={styles.categoryItem}>
+                  <View style={styles.categoryContainer}>
+                    <Image
+                      source={item.image ? { uri: item.image } : IMAGES.pizza1}
+                      style={styles.categoryImage}
+                    />
+                  </View>
+                  <Text style={styles.categoryText}>{item.name}</Text>
                 </View>
-                <Text style={styles.categoryText}>{item.name}</Text>
-              </View>
               </TouchableOpacity>
             )}
             showsHorizontalScrollIndicator={false}
@@ -322,7 +322,6 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Restaurants Section */}
       <View style={{ flex: 1 }}>
         <View style={styles.restaurantsSection}>
           <View style={styles.sectionHeader}>
@@ -347,7 +346,11 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={styles.restaurantItem}
                 // --- QUAN TRỌNG: Phải truyền { restaurant: item.raw } ---
-                onPress={() => navigation.navigate('RestaurantView', { restaurant: item.raw })}
+                onPress={() =>
+                  navigation.navigate('RestaurantView', {
+                    restaurant: item.raw,
+                  })
+                }
               >
                 <View style={styles.restaurantImagePlaceholder}>
                   <Image style={styles.restaurantImage} source={item.image} />
@@ -357,15 +360,25 @@ export default function HomeScreen() {
                   <Text style={styles.restaurantDetails}>{item.details}</Text>
                   <View style={styles.restaurantMeta}>
                     <View style={styles.restaurantMetaDetails}>
-                      <AntDesign name="staro" color={colors.primary} size={20} />
+                      <AntDesign
+                        name="staro"
+                        color={colors.primary}
+                        size={20}
+                      />
                       <Text>{item.rating}</Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>
-                      <MaterialCommunityIcons name="truck-fast-outline" color={colors.primary} size={20} />
+                      <MaterialCommunityIcons
+                        name="truck-fast-outline"
+                        color={colors.primary}
+                        size={20}
+                      />
                       <Text>
                         {item.delivery === 'Free'
                           ? 'Miễn phí'
-                          : `${Number(item.delivery).toLocaleString('vi-VN')} ₫`}
+                          : `${Number(item.delivery).toLocaleString(
+                              'vi-VN',
+                            )} ₫`}
                       </Text>
                     </View>
                     <View style={styles.restaurantMetaDetails}>

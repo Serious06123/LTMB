@@ -84,7 +84,7 @@ const SearchScreen = () => {
   const goToFoodSearch = (categoryName?: string) => {
     navigation.navigate('Food', { category: categoryName });
   };
-  // GraphQL: fetch foods from backend
+
   const GET_FOODS = gql`
     query GetFoods($category: String) {
       getFoods(category: $category) {
@@ -154,18 +154,13 @@ const SearchScreen = () => {
     error: restError,
   } = useQuery<getRestaurantsData>(GET_RESTAURANTS);
   const restaurants = (restData?.getRestaurants || []).map((r: any) => {
-    // 1. Lấy link gốc từ database
     const originalImage = r.image;
-
-    // 2. Xử lý logic đường dẫn
-    let finalUri = IMAGES.pizza1; // Mặc định là ảnh pizza nếu không có ảnh
+    let finalUri = IMAGES.pizza1;
 
     if (originalImage) {
       if (originalImage.startsWith('http')) {
-        // Nếu ảnh đã là link online (Cloudinary, Firebase...) -> Giữ nguyên
         finalUri = { uri: originalImage };
       } else {
-        // Nếu là ảnh upload local (vd: /uploads/abc.png) -> Ghép thêm BASE_URL
         finalUri = { uri: `${BASE_URL}${originalImage}` };
       }
     }
@@ -174,25 +169,25 @@ const SearchScreen = () => {
       name: r.name,
       details: r.categories?.map((c: any) => c.name).join(' - ') || '',
       rating: r.rating ? String(r.rating) : '4.0',
-      delivery: r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
+      delivery:
+        r.deliveryFee && r.deliveryFee > 0 ? `${r.deliveryFee}` : 'Free',
       time: r.deliveryTime || '',
-      image: finalUri, // Gán URL đã xử lý chuẩn vào đây
+      image: finalUri,
       raw: r,
     };
   });
 
-  // Lọc món ăn theo từ khóa
   const filteredFoods = useMemo(() => {
     if (search.trim().length === 0) return foods;
     return foods.filter(f =>
-      f.name.toLowerCase().includes(search.trim().toLowerCase())
+      f.name.toLowerCase().includes(search.trim().toLowerCase()),
     );
   }, [search, foods]);
 
   const filteredRestaurants = useMemo(() => {
     if (search.trim().length === 0) return restaurants;
     return restaurants.filter(r =>
-      r.name.toLowerCase().includes(search.trim().toLowerCase())
+      r.name.toLowerCase().includes(search.trim().toLowerCase()),
     );
   }, [search, restaurants]);
 
@@ -201,7 +196,6 @@ const SearchScreen = () => {
   }
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
       <View style={styles.searchBarContainer}>
         <View style={styles.deliveryInfo}>
           <TouchableOpacity style={styles.backButton} onPress={goBack}>
@@ -220,7 +214,7 @@ const SearchScreen = () => {
               onChangeText={setSearch}
               value={search}
               autoCorrect={false}
-              keyboardType='default'
+              keyboardType="default"
             />
             {search.length > 0 && (
               <Pressable
