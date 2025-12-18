@@ -1,476 +1,344 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
   Image,
-  Pressable,
-  FlatList,
-  ActivityIndicator,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import { colors } from '../../../theme';
-import { IMAGES } from '../../../constants/images';
-import AntDesign from 'react-native-vector-icons/AntDesign';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import Feather from 'react-native-vector-icons/Feather';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Filter from '../../../components/Filter';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
-// --- GRAPHQL ---
+import { colors } from '../../../theme';
 import { gql } from '@apollo/client';
-import { useQuery } from '@apollo/client/react';
-import { BASE_URL } from '../../../constants/config';
+import { useQuery, useMutation } from '@apollo/client/react';
+// --- 1. ĐỊNH NGHĨA INTERFACE (Giữ nguyên) ---
 
-// 1. INTERFACES
-interface Category {
-  _id: string;
-  name: string;
+interface Address {
+  street: string;
+  city: string;
+  lat: number;
+  lng: number;
 }
-interface GetCategoriesData {
-  getCategories: Category[];
-}
-interface FoodItem {
+
+interface UserProfile {
   id: string;
   name: string;
-  price: number;
-  image: string;
-  description: string;
-  category: string;
-  rating: number;
-}
-interface GetFoodsByRestaurantData {
-  getFoodsByRestaurant: FoodItem[];
+  phone: string;
+  address: Address;
 }
 
-// 2. QUERY: Lấy TOÀN BỘ món ăn của nhà hàng (không truyền category để lấy hết)
-const GET_ALL_FOODS_BY_RESTAURANT = gql`
-  query GetFoodsByRestaurant($restaurantId: ID!) {
-    getFoodsByRestaurant(restaurantId: $restaurantId) {
+interface CartItem {
+  foodId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+}
+
+interface Cart {
+  _id: string;
+  restaurantId: string;
+  items: CartItem[];
+  totalAmount: number;
+}
+
+interface GetUserProfileData {
+  me: UserProfile;
+  myCart: Cart;
+}
+
+interface CreateOrderInput {
+  restaurantId: string;
+  items: any[];
+  totalAmount: number;
+  paymentMethod: string;
+  shippingAddress: Address;
+}
+
+// --- 2. QUERY & MUTATION ---
+
+const GET_USER_PROFILE = gql`
+  query GetUserProfile {
+    me {
       id
       name
-      price
-      image
-      description
-      category
-      rating
+      phone
+      address {
+        street
+        city
+        lat
+        lng
+      }
     }
-  }
-`;
-
-const GET_CATEGORIES = gql`
-  query GetCategories {
-    getCategories {
+    myCart {
       _id
-      name
+      restaurantId
+      items {
+        foodId
+        name
+        price
+        quantity
+        image
+      }
+      totalAmount
     }
   }
 `;
 
-const RestaurantViewScreen = () => {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
-
-  // Nhận thêm initialCategory từ FoodScreen
-  const { restaurant, initialCategory } =
-    (route.params as { restaurant: any; initialCategory?: string }) || {};
-
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
-
-  // State quản lý danh mục đang chọn. Mặc định ưu tiên initialCategory, nếu không có thì là 'All'
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    initialCategory || 'All',
-  );
-
-  // --- FETCH DATA ---
-
-  // A. Lấy tất cả danh mục hệ thống (để sắp xếp thứ tự cho đẹp nếu cần)
-  const { data: catData } = useQuery<GetCategoriesData>(GET_CATEGORIES);
-
-  // B. Lấy TOÀN BỘ món ăn của nhà hàng
-  const restaurantIdToFetch = restaurant?.accountId || restaurant?._id;
-  const { data: foodData, loading: foodLoading } =
-    useQuery<GetFoodsByRestaurantData>(GET_ALL_FOODS_BY_RESTAURANT, {
-      variables: { restaurantId: restaurantIdToFetch }, // Không truyền category để lấy tất cả
-      skip: !restaurantIdToFetch,
-      fetchPolicy: 'cache-and-network',
-    });
-
-  // --- XỬ LÝ LOGIC HIỂN THỊ (Client-side) ---
-
-  // 1. Chuẩn hóa danh sách món ăn
-  const allFoods = useMemo(() => {
-    return (foodData?.getFoodsByRestaurant || []).map(item => ({
-      ...item,
-      image: item.image
-        ? item.image.startsWith('http')
-          ? { uri: item.image }
-          : { uri: `${BASE_URL}${item.image}` }
-        : IMAGES.pizza1,
-    }));
-  }, [foodData]);
-
-  // 2. Tính toán "Active Categories" (Chỉ hiện danh mục có món)
-  const activeCategories = useMemo(() => {
-    if (!allFoods.length) return ['All'];
-
-    // Lấy danh sách các category có trong list món ăn
-    const existingCategories = new Set(allFoods.map(f => f.category));
-
-    // Lấy danh sách gốc từ server để giữ đúng thứ tự (nếu muốn)
-    const systemCategories = (catData?.getCategories || []).map(c => c.name);
-
-    // Lọc: Chỉ lấy những category hệ thống CÓ TỒN TẠI trong món ăn của quán này
-    const filtered = systemCategories.filter(cat =>
-      existingCategories.has(cat),
-    );
-
-    // Luôn thêm 'All' vào đầu
-    return ['All', ...filtered];
-  }, [allFoods, catData]);
-
-  // 3. Lọc món ăn để hiển thị theo selectedCategory
-  const displayedFoods = useMemo(() => {
-    if (selectedCategory === 'All') return allFoods;
-    return allFoods.filter(item => item.category === selectedCategory);
-  }, [selectedCategory, allFoods]);
-
-  // 4. Effect: Nếu initialCategory thay đổi hoặc load xong data, đảm bảo selectedCategory hợp lệ
-  useEffect(() => {
-    if (initialCategory && activeCategories.includes(initialCategory)) {
-      setSelectedCategory(initialCategory);
-    } else if (
-      !activeCategories.includes(selectedCategory) &&
-      selectedCategory !== 'All'
-    ) {
-      // Nếu danh mục đang chọn không còn tồn tại (do filter), reset về All
-      setSelectedCategory('All');
+const CREATE_ORDER = gql`
+  mutation CreateOrder($input: CreateOrderInput!) {
+    createOrder(input: $input) {
+      id
+      status
+      totalAmount
+      shippingAddress {
+        street
+      }
     }
-  }, [initialCategory, activeCategories]);
+  }
+`;
 
-  // --- NAVIGATIONS ---
-  const goBack = () => navigation.goBack();
-  const goToFoodDetail = (foodItem: any) => {
-    const foodWithRestaurant = { ...foodItem, restaurant: restaurant };
-    navigation.navigate('FoodDetail', { food: foodWithRestaurant });
+export default function PaymentScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>(); 
+  
+  const [deliveryAddress, setDeliveryAddress] = useState<Address | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
+
+  // --- 3. SỬA LỖI TẠI ĐÂY ---
+  // Bỏ onCompleted, chỉ dùng Generic Type <GetUserProfileData>
+  const { data, loading, error } = useQuery<GetUserProfileData>(GET_USER_PROFILE, {
+    fetchPolicy: 'network-only',
+  });
+
+  const [createOrderMutation, { loading: creating }] = useMutation(CREATE_ORDER);
+
+  // --- 4. DÙNG useEffect THAY CHO onCompleted ---
+  // Khi data tải xong, tự động set địa chỉ mặc định
+  useEffect(() => {
+    if (data?.me?.address?.street && !deliveryAddress) {
+      setDeliveryAddress({
+        street: data.me.address.street,
+        city: data.me.address.city || 'Hồ Chí Minh',
+        lat: data.me.address.lat || 0,
+        lng: data.me.address.lng || 0
+      });
+    }
+  }, [data]); // Chạy lại mỗi khi data thay đổi
+
+  // Nhận địa chỉ từ màn hình Map trả về
+  useEffect(() => {
+    if (route.params?.selectedAddress) {
+      setDeliveryAddress(route.params.selectedAddress);
+    }
+  }, [route.params?.selectedAddress]);
+
+  const handleOpenMap = () => {
+    navigation.navigate('MapScreen', { 
+        isPickingMode: true, 
+        returnScreen: 'Payment' 
+    }); 
   };
 
-  if (!restaurant) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#fff',
-        }}
-      >
-        <Text style={{ color: 'red', marginBottom: 10 }}>
-          Lỗi: Không tìm thấy dữ liệu nhà hàng!
-        </Text>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ padding: 10, backgroundColor: '#eee', borderRadius: 8 }}
-        >
-          <Text>Quay lại</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  let restaurantImage: any = IMAGES.pizza1;
-  if (restaurant.image) {
-    // restaurant.image may be a string (path or url) or already an object like { uri: '...' }
-    if (typeof restaurant.image === 'string') {
-      restaurantImage = restaurant.image.startsWith('http')
-        ? { uri: restaurant.image }
-        : { uri: `${BASE_URL}${restaurant.image}` };
-    } else if (typeof restaurant.image === 'object' && restaurant.image.uri) {
-      restaurantImage = restaurant.image;
-    } else {
-      restaurantImage = IMAGES.pizza1;
+  const handleOrder = async () => {
+    const cart = data?.myCart;
+    
+    if (!cart || !cart.items || cart.items.length === 0) {
+      Alert.alert('Giỏ hàng trống!');
+      return;
     }
-  }
+
+    if (!deliveryAddress) {
+      Alert.alert('Lỗi', 'Vui lòng chọn địa chỉ giao hàng!');
+      return;
+    }
+
+    const orderInput: CreateOrderInput = {
+      restaurantId: cart.restaurantId,
+      items: cart.items.map((i) => ({
+        foodId: i.foodId,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image
+      })),
+      totalAmount: cart.totalAmount,
+      paymentMethod: paymentMethod,
+      shippingAddress: {
+        street: deliveryAddress.street,
+        city: deliveryAddress.city,
+        lat: deliveryAddress.lat,
+        lng: deliveryAddress.lng
+      }
+    };
+
+    try {
+      await createOrderMutation({
+        variables: { input: orderInput }
+      });
+      
+      Alert.alert('Thành công', 'Đặt hàng thành công!', [
+        { text: 'OK', onPress: () => navigation.navigate('CustomerTabs', { screen: 'Orders' }) } 
+      ]);
+    } catch (err: any) {
+      const msg = err.message || 'Có lỗi xảy ra';
+      Alert.alert('Lỗi đặt hàng', msg);
+    }
+  };
+
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  if (error) return <View style={styles.center}><Text>Lỗi tải trang: {error.message}</Text></View>;
+
+  const cart = data?.myCart;
+  const deliveryFee = 15000;
+  const finalTotal = (cart?.totalAmount || 0) + deliveryFee;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.backButton} onPress={goBack}>
-          <AntDesign name="left" color="#000" size={24} />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quán ăn</Text>
-        <TouchableOpacity style={styles.seeMore} onPress={() => setIsFilterVisible(true)}>
-          <AntDesign name="ellipsis1" color="#000" size={24} />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Thanh toán</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Restaurant Info */}
-      <View style={styles.restaurantHeaderWrapper}>
-          <View style={styles.imageContainer}>
-            <Image source={restaurantImage} style={styles.imagePlaceholder} resizeMode="cover" />
-            <Pressable onPress={() => setIsFavorite(!isFavorite)} style={styles.favoriteButton}>
-              {isFavorite ? <AntDesign name="heart" color="#ff0000" size={20} /> : <Feather name="heart" color="#ffffffff" size={20} />}
-            </Pressable>
-          </View>
-          
-          <View style={styles.infoBlock}>
-             <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
-             <Text style={styles.restaurantDescription} numberOfLines={2}>
-               {restaurant.description || "Món ăn ngon, phục vụ tận tình và không gian thoải mái."}
-             </Text>
-             <View style={styles.restaurantMeta}>
-                <View style={styles.metaItem}>
-                    <AntDesign name="star" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.rating || 4.5}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                    <MaterialCommunityIcons name="truck-delivery-outline" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>
-                      {restaurant.deliveryFee && restaurant.deliveryFee > 0
-                        ? `${Number(restaurant.deliveryFee).toLocaleString('vi-VN')} ₫`
-                        : 'Miễn phí'}
-                    </Text>
-                </View>
-                <View style={styles.metaItem}>
-                    <Feather name="clock" color={colors.primary} size={16} />
-                    <Text style={styles.metaText}>{restaurant.deliveryTime || '30 phút'}</Text>
-                </View>
-             </View>
-          </View>
-        </View>
-      {/* Restaurant Info */}
-      <View style={styles.categoriesContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={activeCategories} // Dùng list đã lọc
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.keywordButton,
-                selectedCategory === item && {
-                  backgroundColor: colors.primary,
-                },
-              ]}
-              onPress={() => setSelectedCategory(item)}
-            >
-              <Text
-                style={[
-                  styles.keywordText,
-                  selectedCategory === item && {
-                    color: colors.white,
-                    fontWeight: 'bold',
-                  },
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      {/* Foods Grid */}
-      <View style={styles.foodsContainer}>
-          <Text style={styles.sectionTitle}>
-              {selectedCategory === 'All' ? 'Full Menu' : `${selectedCategory} Menu`} ({displayedFoods.length})
-          </Text>
-          
-          {foodLoading ? (
-             <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 20}} />
-          ) : (
-              <FlatList
-                showsVerticalScrollIndicator={false}
-                numColumns={2}
-                columnWrapperStyle={{justifyContent: 'space-between'}}
-                data={displayedFoods} // Hiển thị list đã lọc client-side
-                keyExtractor={(item) => item.id}
-                ListEmptyComponent={
-                    <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>
-                        No foods found.
-                    </Text>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.foodItem} onPress={() => goToFoodDetail(item)}>
-                 
-                    <Image source={item.image} style={styles.foodImage} />
-                    <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.foodCat} numberOfLines={1}>{item.category}</Text>
-                    <View style={styles.priceRow}>
-                      <Text style={styles.foodPrice}>{Number(item.price).toLocaleString('vi-VN')} ₫</Text>
-                      <View style={{flexDirection: 'row', alignItems: 'center'}}>     
-                      <AntDesign name="staro" color={colors.primary} size={15} />             
-                      <Text> {item.rating} </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        
+        {/* Địa chỉ giao hàng */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Địa chỉ giao hàng</Text>
+          <TouchableOpacity style={styles.addressCard} onPress={handleOpenMap}>
+            <View style={styles.mapIcon}>
+                <FontAwesome5 name="map-marked-alt" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+                {deliveryAddress ? (
+                    <>
+                        <Text style={styles.addressStreet}>{deliveryAddress.street}</Text>
+                        <Text style={styles.addressCity}>{deliveryAddress.city}</Text>
+                    </>
+                ) : (
+                    <Text style={{color: '#888'}}>Vui lòng chọn địa chỉ giao hàng</Text>
                 )}
-                contentContainerStyle={{paddingBottom: 20}}
-              />
-          )}
+            </View>
+            <MaterialIcons name="navigate-next" size={24} color="#ccc" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tóm tắt đơn hàng */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tóm tắt đơn hàng</Text>
+          {cart?.items.map((item, index) => (
+            <View key={index} style={styles.itemRow}>
+              <Image source={{ uri: item.image }} style={styles.itemImage} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemQuantity}>x{item.quantity}</Text>
+              </View>
+              <Text style={styles.itemPrice}>{(item.price * item.quantity).toLocaleString()}đ</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Phương thức thanh toán */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Phương thức thanh toán</Text>
+          
+          <TouchableOpacity 
+            style={[styles.paymentMethod, paymentMethod === 'COD' && styles.activeMethod]}
+            onPress={() => setPaymentMethod('COD')}
+          >
+            <MaterialIcons name="money" size={24} color={paymentMethod === 'COD' ? colors.primary : '#666'} />
+            <Text style={[styles.methodText, paymentMethod === 'COD' && styles.activeText]}>Thanh toán khi nhận hàng (COD)</Text>
+            {paymentMethod === 'COD' && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.paymentMethod, paymentMethod === 'ONLINE' && styles.activeMethod]}
+            onPress={() => setPaymentMethod('ONLINE')}
+          >
+            <MaterialIcons name="payment" size={24} color={paymentMethod === 'ONLINE' ? colors.primary : '#666'} />
+            <Text style={[styles.methodText, paymentMethod === 'ONLINE' && styles.activeText]}>Ví điện tử / Ngân hàng</Text>
+            {paymentMethod === 'ONLINE' && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Tổng tiền */}
+        <View style={styles.billSection}>
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Tạm tính</Text>
+                <Text style={styles.billValue}>{cart?.totalAmount.toLocaleString()}đ</Text>
+            </View>
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Phí giao hàng</Text>
+                <Text style={styles.billValue}>{deliveryFee.toLocaleString()}đ</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.billRow}>
+                <Text style={styles.totalLabel}>Tổng cộng</Text>
+                <Text style={styles.totalValue}>{finalTotal.toLocaleString()}đ</Text>
+            </View>
+        </View>
+
+      </ScrollView>
+
+      {/* Nút đặt hàng */}
+      <View style={styles.footer}>
+        <TouchableOpacity 
+            style={styles.orderButton} 
+            onPress={handleOrder}
+            disabled={creating}
+        >
+            {creating ? (
+                <ActivityIndicator color="#fff" />
+            ) : (
+                <Text style={styles.orderButtonText}>ĐẶT HÀNG - {finalTotal.toLocaleString()}đ</Text>
+            )}
+        </TouchableOpacity>
       </View>
 
-      {isFilterVisible && (
-        <>
-          <View style={styles.overlay} />
-          <View style={styles.filterContainer}>
-            <Filter onClose={() => setIsFilterVisible(false)} />
-          </View>
-        </>
-      )}
-    </View>
+    </SafeAreaView>
   );
-};  
+}
 
 const styles = StyleSheet.create({
-  // Giữ nguyên Styles cũ của bạn
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: 40,
-    paddingHorizontal: 20,
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-  backButton: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: '#ECF0F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#F8F9FE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff' },
+  backBtn: { padding: 5 },
   headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  seeMore: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: '#ECF0F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  restaurantHeaderWrapper: { marginBottom: 20 },
-  imageContainer: {
-    height: 180,
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginBottom: 15,
-    position: 'relative',
-  },
-  imagePlaceholder: { width: '100%', height: '100%' },
-  favoriteButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoBlock: {},
-  restaurantTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#181C2E',
-    marginBottom: 5,
-  },
-  restaurantDescription: {
-    fontSize: 13,
-    color: '#A0A5BA',
-    marginBottom: 10,
-    lineHeight: 18,
-  },
-  restaurantMeta: { flexDirection: 'row', gap: 20 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { fontSize: 13, fontWeight: '600', color: '#181C2E' },
-  categoriesContainer: { marginBottom: 20, height: 50 },
-  keywordButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: '#EDEDED',
-    marginRight: 10,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-  },
-  keywordText: { color: '#181C2E', fontSize: 14, fontWeight: '500' },
-  foodsContainer: { flex: 1 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    color: '#32343E',
-  },
-  foodItem: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  foodImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 10,
-    marginBottom: 10,
-    backgroundColor: '#f0f0f0',
-  },
-  foodName: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#32343E',
-    marginBottom: 3,
-  },
-  foodCat: { fontSize: 12, color: '#A0A5BA', marginBottom: 10 },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  foodPrice: { fontSize: 16, fontWeight: 'bold', color: '#32343E' },
-  addButton: {
-    backgroundColor: colors.primary,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 1,
-  },
-  filterContainer: {
-    position: 'absolute',
-    top: '20%',
-    left: 20,
-    right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    zIndex: 2,
-    elevation: 5,
-  },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#181C2E' },
+  addressCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 12, elevation: 2 },
+  mapIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  addressStreet: { fontSize: 15, fontWeight: '600', color: '#333' },
+  addressCity: { fontSize: 13, color: '#666', marginTop: 2 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 12, marginBottom: 8 },
+  itemImage: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#eee' },
+  itemName: { fontSize: 14, fontWeight: '600', color: '#333' },
+  itemQuantity: { fontSize: 12, color: '#888' },
+  itemPrice: { fontSize: 14, fontWeight: 'bold', color: colors.primary },
+  paymentMethod: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#fff', borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
+  activeMethod: { borderColor: colors.primary, backgroundColor: '#FFF9F9' },
+  methodText: { flex: 1, marginLeft: 10, fontSize: 14, color: '#666' },
+  activeText: { color: colors.primary, fontWeight: '600' },
+  billSection: { backgroundColor: '#fff', padding: 15, borderRadius: 12 },
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  billLabel: { fontSize: 14, color: '#666' },
+  billValue: { fontSize: 14, fontWeight: '600', color: '#333' },
+  divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
+  totalLabel: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  totalValue: { fontSize: 18, fontWeight: 'bold', color: colors.primary },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 20, elevation: 10, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  orderButton: { backgroundColor: colors.primary, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  orderButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });
-
-export default RestaurantViewScreen;

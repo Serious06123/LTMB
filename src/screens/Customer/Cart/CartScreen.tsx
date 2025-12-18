@@ -68,10 +68,11 @@ interface CartItemGQL {
 interface MyCartData {
   myCart: {
     _id: string;
+    userId: string;
     restaurantId?: string | null;
     items: CartItemGQL[];
     totalAmount?: number;
-  } | null;
+  } ;
 }
 
 interface UpdateCartData {
@@ -874,9 +875,9 @@ export default function CartScreen() {
                       await saveCartToServer();
                     } catch (e) {}
                     (navigation as any).navigate('Payment' as never, {
+                      currentRestaurantId,
                       totalAmount: getTotalPrice(),
-                      selectedShops,
-                      itemCount: getSelectedCount(),
+      
                     });
                   }
                 }}

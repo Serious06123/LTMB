@@ -255,34 +255,7 @@ const FoodDetailScreen = () => {
             </View>
           </View>
 
-          {/* Size Options (Hardcode vì DB chưa có) */}
-          <View style={styles.sizeContainer}>
-            <Text style={styles.sectionTitle}>SIZE:</Text>
-            <View style={[styles.sizeOptionsRow]}>
-              {['10"', '14"', '16"'].map((size, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.sizeOption,
-                    isSelected === size && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => setIsSelected(size)}
-                >
-                  <Text
-                    style={[
-                      styles.sizeOptionText,
-                      isSelected === size && {
-                        color: '#fff',
-                        fontWeight: 'bold',
-                      },
-                    ]}
-                  >
-                    {size}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+         
 
           {/* --- REVIEWS LIST (Dữ liệu thật) --- */}
           <View style={styles.reviewsContainer}>
@@ -340,7 +313,9 @@ const FoodDetailScreen = () => {
       {/* --- BOTTOM ACTION --- */}
       <View style={styles.priceContainer}>
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>${totalPrice}</Text>
+          <Text style={styles.priceText}>{Number(totalPrice) % 1 === 0
+              ? `${Number(totalPrice).toLocaleString('vi-VN')} ₫`
+              : `${Number(totalPrice).toLocaleString('vi-VN', { minimumFractionDigits: 1 })} ₫`}</Text>
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               style={styles.quantityButton}
