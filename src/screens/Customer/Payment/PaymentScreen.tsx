@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { gql } from '@apollo/client';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useLazyQuery } from '@apollo/client/react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/AntDesign';
+import { WebView } from 'react-native-webview';
 import { colors } from '../../../theme'; // Import màu từ theme
 import PrimaryButton from '../../../components/button/PrimaryButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,13 +48,31 @@ export default function PaymentScreen() {
     }
   `;
 
-  const CLEAR_CART = gql`
-    mutation ClearCart {
-      clearCart
+  const CREATE_VNPAY = gql`
+    mutation CreateVnpay($orderId: ID!) {
+      createVnpay(orderId: $orderId)
+    }
+  `;
+
+  const GET_ORDER = gql`
+    query GetOrder($id: ID!) {
+      getOrder(id: $id) {
+        id
+        totalAmount
+        status
+        paymentStatus
+      }
     }
   `;
 
   const [createOrder, { loading: creating }] = useMutation(CREATE_ORDER);
+  const [createVnpay] = useMutation(CREATE_VNPAY);
+  const [fetchOrder, { data: orderData }] = useLazyQuery(GET_ORDER, {
+    fetchPolicy: 'network-only',
+  });
+
+  const [showWebView, setShowWebView] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
   const handlePay = async () => {
     try {
@@ -81,23 +100,77 @@ export default function PaymentScreen() {
       const { data } = await createOrder({ variables: { input: payload } });
       // Fix: type assertion for data
       const orderId = (data as { createOrder: { id: string } }).createOrder.id;
-      // Note: Do not call clearCart() here. The server `createOrder` resolver
-      // now removes only the paid items from the user's cart and updates it.
+      // If ONLINE payment, create VNPay url and open WebView
+      if (selectedMethod === 'qr') {
+        try {
+          const resp = await createVnpay({ variables: { orderId } });
+          const paymentUrlResp = (resp?.data as { createVnpay?: string })?.createVnpay;
+          if (!paymentUrlResp) throw new Error('Empty payment url');
+          setPaymentUrl(paymentUrlResp);
+          setShowWebView(true);
+        } catch (e) {
+          console.error('createVnpay error', e);
+          Alert.alert('Lỗi', 'Không thể khởi tạo thanh toán VNPay.');
+        }
+        return;
+      }
 
-      Alert.alert(
-        'Thanh toán thành công',
-        `Đơn hàng đã được tạo. Mã đơn: ${orderId}`,
-        [
-          {
-            text: 'Theo dõi đơn hàng',
-            onPress: () =>
-              (navigation as any).navigate('TrackOrderScreen', { orderId }),
-          },
-        ],
-      );
+      // COD fallback
+      Alert.alert('Đơn hàng đã tạo', `Mã đơn: ${orderId}`, [
+        {
+          text: 'Theo dõi đơn hàng',
+          onPress: () =>
+            (navigation as any).navigate('TrackOrderScreen', { orderId }),
+        },
+      ]);
     } catch (err) {
       console.error('createOrder failed', err);
       Alert.alert('Lỗi', 'Không thể tạo đơn hàng. Vui lòng thử lại.');
+    }
+  };
+
+  const handleWebNavChange = (navState: any) => {
+    const url: string = navState?.url || '';
+    // VNPay will redirect to backend return URL like /vnpay/return
+    if (url.includes('/vnpay/return')) {
+      // close webview
+      setShowWebView(false);
+      // poll backend for order status using txn ref if present in url
+      const m = url.match(/vnp_TxnRef=([^&]+)/);
+      const orderIdFromUrl = m ? decodeURIComponent(m[1]) : null;
+      const orderIdToFetch = orderIdFromUrl;
+      if (orderIdToFetch) {
+        fetchOrder({ variables: { id: orderIdToFetch } });
+        // wait for the query to resolve via orderData watcher (effect could be used)
+        setTimeout(async () => {
+          try {
+            const fetchResult = await fetchOrder({ variables: { id: orderIdToFetch } });
+            const od = (fetchResult.data as { getOrder?: any })?.getOrder;
+            if (od && od.paymentStatus === 'paid') {
+              Alert.alert(
+                'Thanh toán thành công',
+                'Giao dịch đã được xác nhận',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () =>
+                      (navigation as any).navigate('TrackOrderScreen', {
+                        orderId: orderIdToFetch,
+                      }),
+                  },
+                ],
+              );
+            } else {
+              Alert.alert(
+                'Thanh toán',
+                'Giao dịch chưa hoàn tất hoặc thất bại',
+              );
+            }
+          } catch (e) {
+            console.error('Error fetching order after vnpay return', e);
+          }
+        }, 800);
+      }
     }
   };
 
@@ -216,6 +289,17 @@ export default function PaymentScreen() {
 
         <PrimaryButton title="XÁC NHẬN THANH TOÁN" onPress={handlePay} />
       </View>
+      {showWebView && paymentUrl ? (
+        <View
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          <WebView
+            source={{ uri: paymentUrl }}
+            onNavigationStateChange={handleWebNavChange}
+            startInLoadingState
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

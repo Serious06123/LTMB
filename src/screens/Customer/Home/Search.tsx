@@ -237,7 +237,6 @@ const SearchScreen = () => {
         </TouchableWithoutFeedback>
       </View>
 
-      {/* Recent Keywords
       <View style={styles.recentKeywordsContainer}>
         <Text style={styles.sectionTitle}>Từ khóa gần đây</Text>
         <FlatList
@@ -254,7 +253,7 @@ const SearchScreen = () => {
             </TouchableOpacity>
           )}
         />
-      </View> */}
+      </View>
 
       {/* Suggested Restaurants */}
       <View style={styles.suggestedContainer}>

@@ -240,7 +240,6 @@ const RestaurantViewScreen = () => {
              </View>
           </View>
         </View>
-      </View>
 
       {/* Categories Horizontal List (Chỉ hiện các mục có món) */}
       <View style={styles.categoriesContainer}>
