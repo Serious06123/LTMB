@@ -1,6 +1,8 @@
 import { combineReducers } from '@reduxjs/toolkit';
 import generalSlice from '../features/general/generalSlice'; // Đặt tên biến import là gì cũng được
+import cartSlice from '../features/cart/cartSlice';
 
 export default combineReducers({
-  general: generalSlice,   // <--- QUAN TRỌNG: Phải đặt key là 'general'
+  general: generalSlice, // <--- QUAN TRỌNG: Phải đặt key là 'general'
+  cart: cartSlice,
 });

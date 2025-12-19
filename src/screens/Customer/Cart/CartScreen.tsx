@@ -15,6 +15,8 @@ import { gql } from '@apollo/client';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useRoute } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
+import { setSelectedShops } from '../../../features/cart/cartSlice';
 import Icon from 'react-native-vector-icons/AntDesign';
 import { colors } from '../../../theme';
 import { IMAGES } from '../../../constants/images';
@@ -45,10 +47,11 @@ interface Product {
   image: any;
   quantity: number;
   checked: boolean;
+  restaurantId?: string | null;
 }
 
 interface ShopGroup {
-  shopId: string;
+  shopId: string | null;
   shopName: string;
   items: Product[];
   checked: boolean;
@@ -101,13 +104,13 @@ interface GetRestaurantData {
 
 export default function CartScreen() {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const [cartData, setCartData] = useState<ShopGroup[]>([]);
   const [localCart, setLocalCart] = useState<ShopGroup[] | null>(null);
   const LOCAL_CART_KEY = '@LTMB:cart';
   const [originalServerSnapshot, setOriginalServerSnapshot] = useState<
     any | null
   >(null);
-
 
   const UPDATE_CART_MUTATION = gql`
     mutation UpdateCart($restaurantId: ID!, $items: [CartItemInput]!) {
@@ -237,7 +240,10 @@ export default function CartScreen() {
     const items = serverCart.items || [];
     const shopGroup: ShopGroup[] = [
       {
-        shopId: serverCart.restaurantId || 'server',
+        // Use empty string when restaurantId not available instead of null
+        shopId: serverCart.restaurantId
+          ? String(serverCart.restaurantId)
+          : null,
         shopName: serverCart.restaurantId ? 'Nhà hàng' : 'Nhà hàng',
         checked: false,
         items: items.map((it: any) => ({
@@ -245,6 +251,8 @@ export default function CartScreen() {
           name: it.name,
           variation: '',
           price: it.price,
+          // include restaurantId if present on item, fallback to serverCart.restaurantId
+          restaurantId: it.restaurantId || serverCart.restaurantId || null,
           image: it.image ? { uri: it.image } : IMAGES.pizza1,
           quantity: it.quantity || 1,
           checked: false,
@@ -270,7 +278,6 @@ export default function CartScreen() {
         ) as ShopGroup[],
     );
   }, [restaurantData]);
-
 
   useEffect(() => {
     const inc = Array.isArray(incomingNewItems)
@@ -328,6 +335,8 @@ export default function CartScreen() {
           name: it.name,
           variation: '',
           price: it.price,
+          // if item already has restaurantId, keep it; else use restId
+          restaurantId: it.restaurantId || restId || null,
           image: it.image ? { uri: it.image } : IMAGES.pizza1,
           quantity: it.quantity || 1,
           checked: false,
@@ -335,7 +344,8 @@ export default function CartScreen() {
       });
     } else {
       shopGroup.push({
-        shopId: 'local',
+        // No restaurantId available for local-only cart; use null
+        shopId: null,
         shopName: 'Giỏ hàng',
         checked: false,
         items: inc.map((it: any) => ({
@@ -343,6 +353,7 @@ export default function CartScreen() {
           name: it.name,
           variation: '',
           price: it.price,
+          restaurantId: it.restaurantId || incomingRestaurantId || null,
           image: it.image ? { uri: it.image } : IMAGES.pizza1,
           quantity: it.quantity || 1,
           checked: false,
@@ -415,9 +426,9 @@ export default function CartScreen() {
     localMergeRef.current = false;
   }, [localCart]);
 
-  const toggleShop = (shopId: string) => {
+  const toggleShop = (shopId: string | null) => {
     const newData = cartData.map(shop => {
-      if (shop.shopId === shopId) {
+      if (String(shop.shopId) === String(shopId)) {
         const newChecked = !shop.checked;
         return {
           ...shop,
@@ -442,9 +453,9 @@ export default function CartScreen() {
     setCartData(newData);
   };
 
-  const toggleItem = (shopId: string, itemId: string) => {
+  const toggleItem = (shopId: string | null, itemId: string) => {
     const newData = cartData.map(shop => {
-      if (shop.shopId === shopId) {
+      if (String(shop.shopId) === String(shopId)) {
         const newItems = shop.items.map(item =>
           item.id === itemId ? { ...item, checked: !item.checked } : item,
         );
@@ -461,7 +472,7 @@ export default function CartScreen() {
     console.log(
       '[Cart] toggleItem newData for shop=',
       shopId,
-      newData.find(s => s.shopId === shopId),
+      newData.find(s => String(s.shopId) === String(shopId)),
     );
     setCartData(newData);
   };
@@ -505,6 +516,8 @@ export default function CartScreen() {
     const restaurantId = activeShop.shopId;
     const items = activeShop.items.map(i => ({
       foodId: i.id,
+      // include restaurantId per item if present; fallback to restaurantId variable
+      restaurantId: i.restaurantId || restaurantId || null,
       name: i.name,
       price: i.price,
       quantity: i.quantity,
@@ -549,7 +562,7 @@ export default function CartScreen() {
     console.log('[Cart] saveCartToServer changed=', changed);
     if (!changed) return;
 
-    if (!restaurantId || String(restaurantId) === 'local') {
+    if (restaurantId === null || restaurantId === '') {
       console.log(
         '[Cart] saveCartToServer skipping server update for local shop=',
         restaurantId,
@@ -575,8 +588,7 @@ export default function CartScreen() {
     const unsubscribe = (navigation as any).addListener('blur', async () => {
       try {
         await saveCartToServer();
-      } catch (e) {
-      }
+      } catch (e) {}
     });
     return unsubscribe;
   }, [navigation, saveCartToServer]);
@@ -607,10 +619,14 @@ export default function CartScreen() {
     return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
   };
 
-  const changeQuantity = (shopId: string, itemId: string, delta: number) => {
+  const changeQuantity = (
+    shopId: string | null,
+    itemId: string,
+    delta: number,
+  ) => {
     const newData = cartData
       .map(shop => {
-        if (shop.shopId === shopId) {
+        if (String(shop.shopId) === String(shopId)) {
           const newItems = shop.items
             .map(item => {
               if (item.id === itemId) {
@@ -768,7 +784,9 @@ export default function CartScreen() {
           <FlatList
             data={cartData}
             renderItem={renderShopGroup}
-            keyExtractor={item => item.shopId}
+            keyExtractor={(item, index) =>
+              String(item.shopId ?? `local-${index}`)
+            }
             contentContainerStyle={{ paddingBottom: 100 }}
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
@@ -813,8 +831,6 @@ export default function CartScreen() {
                   );
                   const selectedShops = cartData
                     .map(s => ({
-                      shopId: s.shopId,
-                      shopName: s.shopName,
                       items: s.items
                         .filter(i => i.checked)
                         .map(i => ({
@@ -822,16 +838,39 @@ export default function CartScreen() {
                           name: i.name,
                           price: i.price,
                           quantity: i.quantity,
+                          // Truyền image dưới dạng STRING để không gửi object tới GraphQL
+                          image:
+                            typeof i.image === 'object' && i.image?.uri
+                              ? i.image.uri
+                              : typeof i.image === 'string'
+                              ? i.image
+                              : '',
+                          // include restaurantId per item so Payment can group correctly
+                          restaurantId: i.restaurantId || s.shopId || null,
                         })),
                     }))
                     .filter(s => s.items.length > 0);
 
                   if (selectedShops.length > 0) {
+                    console.log(
+                      '[Cart] Navigating to Payment with shops=',
+                      selectedShops,
+                    );
                     try {
                       await saveCartToServer();
                     } catch (e) {}
+                    // dispatch to redux so PaymentScreen can read selectedShops from store
+                    try {
+                      dispatch(setSelectedShops(selectedShops));
+                    } catch (err) {
+                      console.warn(
+                        '[Cart] dispatch setSelectedShops failed',
+                        err,
+                      );
+                    }
+
                     (navigation as any).navigate('Payment' as never, {
-                      currentRestaurantId,
+                      selectedShops,
                       totalAmount: getTotalPrice(),
                     });
                   }
