@@ -46,7 +46,7 @@ interface CartItem {
 
 interface Cart {
   _id: string;
-  restaurantId: string;
+  restaurantId?: string | null;
   items: CartItem[];
   totalAmount: number;
 }
@@ -322,83 +322,89 @@ export default function PaymentScreen() {
         );
       }
 
-      // Build inputs: ensure each input has a non-null restaurantId (server requires ID)
+      // Build inputs: group items by their restaurantId and create one order per restaurant
       const inputs: CreateOrderInput[] = [];
       for (const shop of shops) {
-        // Resolve restaurantId from group or item or fallback to server cart
-        let resolvedRestaurantId =
-          shop.restaurantId ||
-          (shop.items && shop.items[0] && shop.items[0].restaurantId) ||
-          data?.myCart?.restaurantId ||
-          null;
+        // Group items in this shop by item.restaurantId
+        const groups = new Map<string | null, any[]>();
+        for (const it of shop.items || []) {
+          const rid = it.restaurantId ? String(it.restaurantId) : null;
+          if (!groups.has(rid)) groups.set(rid, []);
+          groups.get(rid)!.push(it);
+        }
 
-        // If still missing, try to fetch from the first item's food detail
-        if (!resolvedRestaurantId) {
-          const firstId =
-            (shop.items && (shop.items[0]?.foodId || shop.items[0]?.id)) ||
-            null;
-          if (firstId) {
-            try {
-              const r = await client.query({
-                query: GET_FOOD_SIMPLE,
-                variables: { id: String(firstId) },
-              });
-              const fd = (r.data as any)?.getFood;
-              const rid = fd?.restaurantId || fd?.restaurant?._id || null;
-              if (rid) {
-                resolvedRestaurantId = String(rid);
-                // propagate to items
-                for (const it of shop.items) {
-                  if (!it.restaurantId) it.restaurantId = resolvedRestaurantId;
+        // For each restaurant group, ensure we have a restaurantId (try to resolve if missing), then build an order input
+        for (const [rid, its] of groups.entries()) {
+          let resolvedRestaurantId: string | null = rid;
+
+          if (!resolvedRestaurantId) {
+            // try to fetch from first item's food if available
+            const firstId = its[0]?.foodId || its[0]?.id || null;
+            if (firstId) {
+              try {
+                const r = await client.query({
+                  query: GET_FOOD_SIMPLE,
+                  variables: { id: String(firstId) },
+                });
+                const fd = (r.data as any)?.getFood;
+                const fetchedRid =
+                  fd?.restaurantId || fd?.restaurant?._id || null;
+                if (fetchedRid) {
+                  resolvedRestaurantId = String(fetchedRid);
+                  // propagate to items
+                  for (const it of its) {
+                    if (!it.restaurantId)
+                      it.restaurantId = resolvedRestaurantId;
+                  }
                 }
+              } catch (e) {
+                console.warn('[Payment] fallback fetch food failed', e);
               }
-            } catch (e) {
-              console.warn('[Payment] fallback fetch food failed', e);
             }
           }
+
+          if (!resolvedRestaurantId) {
+            Alert.alert(
+              'Lỗi đặt hàng',
+              'Không thể xác định nhà hàng cho một số món. Vui lòng kiểm tra giỏ hàng và thử lại.',
+            );
+            return;
+          }
+
+          const items = its.map((i: any) => {
+            const fid = i.foodId || i.id;
+            let imageStr = '';
+            if (!i.image) imageStr = '';
+            else if (typeof i.image === 'string') imageStr = i.image;
+            else if (typeof i.image === 'object' && i.image.uri)
+              imageStr = i.image.uri;
+            else imageStr = String(i.image);
+            return {
+              foodId: String(fid),
+              name: i.name,
+              price: Number(i.price) || 0,
+              quantity: Number(i.quantity) || 1,
+              image: imageStr,
+              restaurantId: i.restaurantId || resolvedRestaurantId,
+            };
+          });
+
+          inputs.push({
+            restaurantId: String(resolvedRestaurantId),
+            items,
+            totalAmount: items.reduce(
+              (s: number, it: any) => s + it.price * it.quantity,
+              0,
+            ),
+            paymentMethod,
+            shippingAddress: {
+              street: deliveryLocation!.street,
+              city: deliveryLocation!.city,
+              lat: deliveryLocation!.lat,
+              lng: deliveryLocation!.lng,
+            },
+          } as CreateOrderInput);
         }
-
-        // If still missing, abort (server GraphQL type requires non-null ID)
-        if (!resolvedRestaurantId) {
-          Alert.alert(
-            'Lỗi đặt hàng',
-            'Không thể xác định nhà hàng cho một số món. Vui lòng kiểm tra giỏ hàng và thử lại.',
-          );
-          return;
-        }
-
-        const items = (shop.items || []).map((i: any) => {
-          const fid = i.foodId || i.id;
-          let imageStr = '';
-          if (!i.image) imageStr = '';
-          else if (typeof i.image === 'string') imageStr = i.image;
-          else if (typeof i.image === 'object' && i.image.uri)
-            imageStr = i.image.uri;
-          else imageStr = String(i.image);
-          return {
-            foodId: String(fid),
-            name: i.name,
-            price: Number(i.price) || 0,
-            quantity: Number(i.quantity) || 1,
-            image: imageStr,
-          };
-        });
-
-        inputs.push({
-          restaurantId: String(resolvedRestaurantId),
-          items,
-          totalAmount: items.reduce(
-            (s: number, it: any) => s + it.price * it.quantity,
-            0,
-          ),
-          paymentMethod,
-          shippingAddress: {
-            street: deliveryLocation!.street,
-            city: deliveryLocation!.city,
-            lat: deliveryLocation!.lat,
-            lng: deliveryLocation!.lng,
-          },
-        } as CreateOrderInput);
       }
 
       // Call batched mutation
@@ -451,19 +457,25 @@ export default function PaymentScreen() {
         items: s.items,
       }))
     : data?.myCart
-    ? [
-        {
-          restaurantId: data.myCart.restaurantId || null,
-          items: data.myCart.items.map(i => ({
+    ? // group server cart items by per-item restaurantId
+      (() => {
+        const groups: Record<string, any> = {};
+        const items = data.myCart.items || [];
+        for (const i of items) {
+          const rid = i.restaurantId || null;
+          const key = String(rid || 'null');
+          if (!groups[key]) groups[key] = { restaurantId: rid, items: [] };
+          groups[key].items.push({
             foodId: i.foodId,
             name: i.name,
             price: i.price,
             quantity: i.quantity,
             image: i.image,
-            restaurantId: i.restaurantId || data.myCart.restaurantId || null,
-          })),
-        },
-      ]
+            restaurantId: i.restaurantId || null,
+          });
+        }
+        return Object.values(groups);
+      })()
     : [];
 
   const deliveryFee = 15000;
