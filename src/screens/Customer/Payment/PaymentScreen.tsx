@@ -530,6 +530,7 @@ export default function PaymentScreen() {
               {shop.items.map((item: any, index: number) => {
                 // normalize image source: item.image may be a string uri, an object {uri: string},
                 // or a local require number. Avoid passing empty string to {uri}.
+                console.log(item.restaurantId);
                 let imageSource: any = null;
                 if (
                   typeof item.image === 'string' &&

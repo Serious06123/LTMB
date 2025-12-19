@@ -8,23 +8,25 @@ import {
     ScrollView,
     Image,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    Modal,            // <--- Mới
+    FlatList,         // <--- Mới
+    TouchableWithoutFeedback // <--- Mới (để đóng modal khi bấm ra ngoài)
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // --- IMPORTS CHO UPLOAD VÀ GRAPHQL ---
 import { launchImageLibrary } from 'react-native-image-picker';
 import axios from 'axios';
-import { gql } from '@apollo/client'; // Import Apollo Client
-import { useMutation } from '@apollo/client/react';
+import { gql } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { colors } from '../../theme';
 import { BASE_URL } from '../../constants/config';
 
-// --- 1. ĐỊNH NGHĨA MUTATION (Đã bỏ ingredients) ---
+// --- 1. ĐỊNH NGHĨA MUTATION & QUERY ---
 const CREATE_FOOD_MUTATION = gql`
   mutation CreateFood($name: String!, $price: Float!, $description: String, $image: String, $category: String!) {
     createFood(
@@ -40,30 +42,56 @@ const CREATE_FOOD_MUTATION = gql`
   }
 `;
 
+const GET_CATEGORIES = gql`
+  query GetCategories {
+    getCategories {
+      id
+      name
+    }
+  }
+`;
+
+interface CategoryItem {
+    id: string;
+    name: string;
+}
+
+interface CategoryData {
+    getCategories: CategoryItem[];
+}
+
 export default function AddNewItem() {
     const navigation = useNavigation();
 
     // Form State
-    const [itemName, setItemName] = useState('Hủ tiếu');
-    const [price, setPrice] = useState('50');
+    const [itemName, setItemName] = useState('');
+    const [price, setPrice] = useState('');
     const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('Fast Food'); // Mặc định category
-    // --- STATE CHO UPLOAD ẢNH ---
+    
+    // Category State
+    const [category, setCategory] = useState(''); 
+    const [modalVisible, setModalVisible] = useState(false); // <--- State bật/tắt popup danh sách
+
+    // Upload State
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [cloudinaryUrl, setCloudinaryUrl] = useState<string>('');
     const [uploading, setUploading] = useState(false);
 
     // --- HOOK GRAPHQL ---
+    const { data: catData, loading: catLoading } = useQuery<CategoryData>(GET_CATEGORIES);
+    
+    // Lấy danh sách categories từ data, nếu chưa có thì để mảng rỗng
+    const categoriesList = catData?.getCategories || [];
+
     const resetForm = () => {
         setItemName('');
         setPrice('');
         setDescription('');
         setImageUri(null);
-
-        // --- QUAN TRỌNG: Phải reset cả 2 biến này ---
-        setCloudinaryUrl(''); // Xóa link ảnh đã upload lên server
-        setCategory('');      // (Tuỳ chọn) Nếu muốn reset cả danh mục
+        setCloudinaryUrl('');
+        setCategory('');
     };
+
     const [createFood, { loading: saving }] = useMutation(CREATE_FOOD_MUTATION, {
         onCompleted: (data: any) => {
             Alert.alert("Thành công", `Đã thêm món: ${data.createFood.name}`);
@@ -73,6 +101,7 @@ export default function AddNewItem() {
             Alert.alert("Lỗi", error.message);
         }
     });
+
     // 1. Hàm chọn ảnh
     const pickImage = () => {
         launchImageLibrary({ mediaType: 'photo', quality: 0.7 }, (response) => {
@@ -89,11 +118,10 @@ export default function AddNewItem() {
         });
     };
 
-    // 2. Hàm Upload lên Backend -> Cloudinary
+    // 2. Hàm Upload Cloudinary
     const uploadToCloudinary = async (imageAsset: any) => {
         setUploading(true);
         const formData = new FormData();
-
         formData.append('image', {
             uri: imageAsset.uri,
             type: imageAsset.type,
@@ -115,10 +143,14 @@ export default function AddNewItem() {
         }
     };
 
-    // 3. Hàm Save - Gọi GraphQL
+    // 3. Hàm Save
     const handleSave = () => {
         if (!itemName || !price) {
             Alert.alert("Thiếu thông tin", "Vui lòng nhập tên và giá món ăn");
+            return;
+        }
+        if (!category) {
+            Alert.alert("Thiếu thông tin", "Vui lòng chọn danh mục (Category)");
             return;
         }
         if (!cloudinaryUrl && !imageUri) {
@@ -130,24 +162,21 @@ export default function AddNewItem() {
             return;
         }
 
-        // Chuyển đổi giá sang số thực (Float)
         const priceFloat = parseFloat(price);
         if (isNaN(priceFloat)) {
             Alert.alert("Lỗi", "Giá tiền không hợp lệ");
             return;
         }
 
-        // Gọi Mutation
         createFood({
             variables: {
                 name: itemName,
                 price: priceFloat,
                 description: description,
-                image: cloudinaryUrl, // Link ảnh từ Cloudinary
-                category: category // Gửi category (ví dụ: 'Fast Food')
+                image: cloudinaryUrl,
+                category: category 
             }
         });
-        
     };
 
     return (
@@ -158,9 +187,7 @@ export default function AddNewItem() {
                     <AntDesign name="left" size={20} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Add New Items</Text>
-                <TouchableOpacity onPress={() => {
-                    setItemName(''); setPrice(''); setDescription(''); setImageUri(null);
-                }}>
+                <TouchableOpacity onPress={resetForm}>
                     <Text style={styles.resetText}>RESET</Text>
                 </TouchableOpacity>
             </View>
@@ -176,16 +203,20 @@ export default function AddNewItem() {
                     placeholder="Enter item name"
                 />
 
-                {/* CATEGORY (Ví dụ nhập tay, bạn có thể thay bằng Dropdown sau này) */}
+                {/* --- CATEGORY SELECTOR (SỬA ĐỔI TẠI ĐÂY) --- */}
                 <Text style={styles.label}>CATEGORY</Text>
-                <TextInput
-                    style={styles.input}
-                    value={category}
-                    onChangeText={setCategory}
-                    placeholder="e.g. Burger, Pizza, Drink"
-                />
+                
+                <TouchableOpacity 
+                    style={[styles.input, styles.dropdownButton]} 
+                    onPress={() => setModalVisible(true)}
+                >
+                    <Text style={{ color: category ? '#181C2E' : '#A0A5BA', fontSize: 16 }}>
+                        {category || 'Select Category...'}
+                    </Text>
+                    <AntDesign name="down" size={16} color="#666" />
+                </TouchableOpacity>
 
-                {/* UPLOAD PHOTO LOGIC */}
+                {/* UPLOAD PHOTO */}
                 <Text style={styles.label}>UPLOAD PHOTO</Text>
                 <View style={styles.uploadRow}>
                     {uploading ? (
@@ -213,7 +244,7 @@ export default function AddNewItem() {
                     )}
                 </View>
 
-                {/* PRICE & TYPE */}
+                {/* PRICE */}
                 <Text style={styles.label}>PRICE</Text>
                 <View style={styles.priceRow}>
                     <View style={styles.priceInputWrap}>
@@ -225,7 +256,6 @@ export default function AddNewItem() {
                             keyboardType="numeric"
                         />
                     </View>
-
                 </View>
 
                 {/* DETAILS */}
@@ -254,6 +284,63 @@ export default function AddNewItem() {
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* --- MODAL DANH SÁCH CATEGORY --- */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback>
+                            <View style={styles.modalContent}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Select Category</Text>
+                                    <TouchableOpacity onPress={() => setModalVisible(false)}>
+                                        <AntDesign name="close" size={24} color="#000" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                {catLoading ? (
+                                    <ActivityIndicator size="large" color={colors.primary} />
+                                ) : (
+                                    <FlatList
+                                        data={categoriesList}
+                                        keyExtractor={(item) => item.id}
+                                        renderItem={({ item }) => (
+                                            <TouchableOpacity
+                                                style={styles.categoryItem}
+                                                onPress={() => {
+                                                    setCategory(item.name); // Lưu tên category
+                                                    setModalVisible(false); // Đóng modal
+                                                }}
+                                            >
+                                                <Text style={[
+                                                    styles.categoryText, 
+                                                    category === item.name && { color: colors.primary, fontWeight: 'bold' }
+                                                ]}>
+                                                    {item.name}
+                                                </Text>
+                                                {category === item.name && (
+                                                    <AntDesign name="check" size={20} color={colors.primary} />
+                                                )}
+                                            </TouchableOpacity>
+                                        )}
+                                        ListEmptyComponent={
+                                            <Text style={{textAlign: 'center', color: '#999', marginTop: 20}}>
+                                                Chưa có danh mục nào.
+                                            </Text>
+                                        }
+                                    />
+                                )}
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+
         </SafeAreaView>
     );
 }
@@ -280,6 +367,13 @@ const styles = StyleSheet.create({
     input: {
         backgroundColor: '#F6F6F6', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 15, color: '#181C2E', fontSize: 16,
     },
+    // Styles mới cho Dropdown Button
+    dropdownButton: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    
     // Upload Styles
     uploadRow: { flexDirection: 'row', gap: 10 },
     uploadItem: {
@@ -319,5 +413,46 @@ const styles = StyleSheet.create({
     },
     saveButtonText: {
         color: '#fff', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1,
+    },
+
+    // --- MODAL STYLES ---
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '60%', 
+        elevation: 5,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        paddingBottom: 10,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#181C2E',
+    },
+    categoryItem: {
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    categoryText: {
+        fontSize: 16,
+        color: '#32343E',
     },
 });
