@@ -63,13 +63,13 @@ interface CartItemGQL {
   price: number;
   quantity: number;
   image?: string | null;
+  restaurantId?: string | null;
 }
 
 interface MyCartData {
   myCart: {
     _id: string;
     userId: string;
-    restaurantId?: string | null;
     items: CartItemGQL[];
     totalAmount?: number;
   };
@@ -78,20 +78,19 @@ interface MyCartData {
 interface UpdateCartData {
   updateCart: {
     _id: string;
-    restaurantId?: string | null;
     items: CartItemGQL[];
     totalAmount?: number;
   };
 }
 
 interface UpdateCartVars {
-  restaurantId: string;
   items: Array<{
     foodId: string;
     name: string;
     price: number;
     quantity: number;
     image?: string;
+    restaurantId?: string | null;
   }>;
 }
 
@@ -113,10 +112,9 @@ export default function CartScreen() {
   >(null);
 
   const UPDATE_CART_MUTATION = gql`
-    mutation UpdateCart($restaurantId: ID!, $items: [CartItemInput]!) {
-      updateCart(restaurantId: $restaurantId, items: $items) {
+    mutation UpdateCart($items: [CartItemInput]!) {
+      updateCart(items: $items) {
         _id
-        restaurantId
         items {
           foodId
           name
@@ -137,13 +135,13 @@ export default function CartScreen() {
     query MyCart {
       myCart {
         _id
-        restaurantId
         items {
           foodId
           name
           price
           quantity
           image
+          restaurantId
         }
         totalAmount
       }
@@ -238,31 +236,37 @@ export default function CartScreen() {
     }
 
     const items = serverCart.items || [];
-    const shopGroup: ShopGroup[] = [
-      {
-        // Use empty string when restaurantId not available instead of null
-        shopId: serverCart.restaurantId
-          ? String(serverCart.restaurantId)
-          : null,
-        shopName: serverCart.restaurantId ? 'Nhà hàng' : 'Nhà hàng',
+    // Group items by per-item restaurantId
+    const groups = new Map<string | null, any[]>();
+    items.forEach((it: any) => {
+      const rid = it.restaurantId ? String(it.restaurantId) : null;
+      if (!groups.has(rid)) groups.set(rid, []);
+      groups.get(rid)!.push(it);
+    });
+
+    const shopGroup: ShopGroup[] = Array.from(groups.entries()).map(
+      ([rid, its]) => ({
+        shopId: rid,
+        shopName: rid ? 'Nhà hàng' : 'Giỏ hàng',
         checked: false,
-        items: items.map((it: any) => ({
+        items: its.map((it: any) => ({
           id: it.foodId,
           name: it.name,
           variation: '',
           price: it.price,
-          // include restaurantId if present on item, fallback to serverCart.restaurantId
-          restaurantId: it.restaurantId || serverCart.restaurantId || null,
+          restaurantId: it.restaurantId || null,
           image: it.image ? { uri: it.image } : IMAGES.pizza1,
           quantity: it.quantity || 1,
           checked: false,
         })),
-      },
-    ];
+      }),
+    );
 
     setCartData(shopGroup);
-    setOriginalServerSnapshot({ restaurantId: serverCart.restaurantId, items });
-    setCurrentRestaurantId(serverCart.restaurantId || null);
+    // originalServerSnapshot keeps a representative restaurantId (first group) for change detection
+    const firstRid = shopGroup.length > 0 ? shopGroup[0].shopId : null;
+    setOriginalServerSnapshot({ items });
+    setCurrentRestaurantId(firstRid || null);
   }, [myCartData, myCartLoading]);
 
   useEffect(() => {
@@ -313,65 +317,47 @@ export default function CartScreen() {
           price: incItem.price,
           quantity: incItem.quantity,
           image: incItem.image,
+          restaurantId: incItem.restaurantId || incomingRestaurantId || null,
         });
       }
     });
+    // Group merged baseItems by per-item restaurantId (fallback to incomingRestaurantId)
+    const groups = new Map<string | null, any[]>();
+    baseItems.forEach((it: any) => {
+      const rid = it.restaurantId
+        ? String(it.restaurantId)
+        : incomingRestaurantId || null;
+      if (!groups.has(rid)) groups.set(rid, []);
+      groups.get(rid)!.push(it);
+    });
 
-    const restId =
-      (server && (server as any).restaurantId !== undefined
-        ? (server as any).restaurantId
-        : undefined) ||
-      incomingRestaurantId ||
-      inc[0]?.restaurantId ||
-      null;
-    const shopGroup: ShopGroup[] = [];
-    if (restId) {
-      shopGroup.push({
-        shopId: restId,
-        shopName: 'Nhà hàng',
+    const shopGroup: ShopGroup[] = Array.from(groups.entries()).map(
+      ([rid, its]) => ({
+        shopId: rid,
+        shopName: rid ? 'Nhà hàng' : 'Giỏ hàng',
         checked: false,
-        items: baseItems.map((it: any) => ({
+        items: its.map((it: any) => ({
           id: it.foodId,
           name: it.name,
           variation: '',
           price: it.price,
-          // if item already has restaurantId, keep it; else use restId
-          restaurantId: it.restaurantId || restId || null,
+          restaurantId: it.restaurantId || rid || null,
           image: it.image ? { uri: it.image } : IMAGES.pizza1,
           quantity: it.quantity || 1,
           checked: false,
         })),
-      });
-    } else {
-      shopGroup.push({
-        // No restaurantId available for local-only cart; use null
-        shopId: null,
-        shopName: 'Giỏ hàng',
-        checked: false,
-        items: inc.map((it: any) => ({
-          id: it.foodId,
-          name: it.name,
-          variation: '',
-          price: it.price,
-          restaurantId: it.restaurantId || incomingRestaurantId || null,
-          image: it.image ? { uri: it.image } : IMAGES.pizza1,
-          quantity: it.quantity || 1,
-          checked: false,
-        })),
-      });
-    }
+      }),
+    );
 
     setCartData(shopGroup);
     const serverItems = server && server.items ? server.items : [];
-    setOriginalServerSnapshot({
-      restaurantId: restId,
-      items: serverItems,
-    });
+    const firstRid = shopGroup.length > 0 ? shopGroup[0].shopId : null;
+    setOriginalServerSnapshot({ items: serverItems });
     console.log(
       '[Cart] EffectB setOriginalServerSnapshot from server items length=',
       serverItems.length,
     );
-    setCurrentRestaurantId(restId || null);
+    setCurrentRestaurantId(firstRid || null);
     processedIncomingRef.current = true;
   }, [incomingNewItems, incomingRestaurantId, myCartData]);
 
@@ -539,7 +525,6 @@ export default function CartScreen() {
     const server = originalServerSnapshot;
     const changed = (() => {
       if (!server) return items.length > 0; // no server cart before -> changed if we have items
-      if (String(server.restaurantId) !== String(restaurantId)) return true;
       const sItems = server.items || [];
       if (sItems.length !== items.length) return true;
       for (let it of items) {
@@ -571,9 +556,9 @@ export default function CartScreen() {
     }
 
     try {
-      const res = await updateCart({ variables: { restaurantId, items } });
+      const res = await updateCart({ variables: { items } });
       console.log('[Cart] updateCart result=', res);
-      setOriginalServerSnapshot({ restaurantId, items });
+      setOriginalServerSnapshot({ items });
       try {
         await refetchMyCart();
       } catch (e) {
