@@ -57,16 +57,25 @@ export default function Navigators() {
         <Stack.Screen name="OTPVerify" component={OTPVerify} />
         <Stack.Screen name="MapScreen" component={MapScreen} />
         <Stack.Screen name="TrackOrderScreen" component={TrackOrderScreen} />
-        <Stack.Screen name="RestaurantDashboard" component={RestaurantDashboard} />
+        <Stack.Screen
+          name="RestaurantDashboard"
+          component={RestaurantDashboard}
+        />
         <Stack.Screen
           name="RunningOrders"
           component={RunningOrders}
           // Tùy chọn: Hiệu ứng trượt từ dưới lên giống Modal (chỉ hỗ trợ tốt trên iOS hoặc Android config native)
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
-        <Stack.Screen name="FoodDetailRestaurant" component={FoodDetailRestaurant} />
+        <Stack.Screen
+          name="FoodDetailRestaurant"
+          component={FoodDetailRestaurant}
+        />
         <Stack.Screen name="ReviewsScreen" component={ReviewsScreen} />
-        <Stack.Screen name="ChangePasswordAuth" component={ChangePasswordAuth} />
+        <Stack.Screen
+          name="ChangePasswordAuth"
+          component={ChangePasswordAuth}
+        />
         <Stack.Screen name="ShipperTabs" component={ShipperTabs} />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
       </Stack.Navigator>
