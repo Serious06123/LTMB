@@ -493,34 +493,29 @@ export default function CartScreen() {
     console.log('[Cart] saveCartToServer START', {
       cartLength: cartData.length,
     });
-    const activeShop = cartData.find(s => s.items.length > 0);
-    if (!activeShop) {
-      console.log('[Cart] saveCartToServer: no activeShop, nothing to save');
+    // Flatten all shops' items so we persist the full cart to server
+    const shopsWithItems = cartData.filter(s => s.items && s.items.length > 0);
+    if (shopsWithItems.length === 0) {
+      console.log('[Cart] saveCartToServer: no items in cart, nothing to save');
       return;
     }
 
-    const restaurantId = activeShop.shopId;
-    const items = activeShop.items.map(i => ({
-      foodId: i.id,
-      // include restaurantId per item if present; fallback to restaurantId variable
-      restaurantId: i.restaurantId || restaurantId || null,
-      name: i.name,
-      price: i.price,
-      quantity: i.quantity,
-      image:
-        typeof i.image === 'object' && i.image?.uri
-          ? i.image.uri
-          : i.image || '',
-    }));
-
-    console.log(
-      '[Cart] saveCartToServer activeShop=',
-      restaurantId,
-      'itemsCount=',
-      items.length,
-      'originalSnapshot=',
-      originalServerSnapshot,
+    const items = shopsWithItems.flatMap(s =>
+      s.items.map(i => ({
+        foodId: i.id,
+        // include restaurantId per item if present; fallback to shopId
+        restaurantId: i.restaurantId || s.shopId || null,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        image:
+          typeof i.image === 'object' && i.image?.uri
+            ? i.image.uri
+            : i.image || '',
+      })),
     );
+
+    console.log('[Cart] saveCartToServer flattened itemsCount=', items.length);
 
     const server = originalServerSnapshot;
     const changed = (() => {
@@ -547,15 +542,8 @@ export default function CartScreen() {
     console.log('[Cart] saveCartToServer changed=', changed);
     if (!changed) return;
 
-    if (restaurantId === null || restaurantId === '') {
-      console.log(
-        '[Cart] saveCartToServer skipping server update for local shop=',
-        restaurantId,
-      );
-      return;
-    }
-
     try {
+      // Send full items list to server so server-side cart isn't overwritten
       const res = await updateCart({ variables: { items } });
       console.log('[Cart] updateCart result=', res);
       setOriginalServerSnapshot({ items });

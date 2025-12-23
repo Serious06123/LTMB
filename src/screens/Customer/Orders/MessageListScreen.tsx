@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  StatusBar
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,7 +20,8 @@ import { BASE_URL } from '../../../constants/config';
 
 // --- APOLLO CLIENT ---
 import { gql } from '@apollo/client';
-import { useQuery } from '@apollo/client/react';
+
+import { useQuery, useApolloClient } from '@apollo/client/react';
 
 // 1. ĐỊNH NGHĨA INTERFACE (TYPESCRIPT)
 interface RestaurantInfo {
@@ -34,8 +35,8 @@ interface OrderItem {
   status: string;
   createdAt: string;
   shipperId?: string;
+  restaurantId?: string;
   restaurant?: RestaurantInfo;
-  // Bạn có thể thêm field 'lastMessage' nếu backend hỗ trợ trả về tin nhắn cuối
 }
 
 interface MyOrdersData {
@@ -50,11 +51,7 @@ const GET_CHAT_ORDERS = gql`
       status
       createdAt
       shipperId
-      restaurant {
-        id
-        name
-        avatar
-      }
+      restaurantId
     }
   }
 `;
@@ -62,13 +59,99 @@ const GET_CHAT_ORDERS = gql`
 export default function MessageListScreen() {
   const navigation = useNavigation<any>();
 
+  const client = useApolloClient();
+  const [restaurants, setRestaurants] = React.useState<
+    Record<string, { name: string; avatar?: string }>
+  >({});
+
   // 3. GỌI API LẤY DỮ LIỆU
-  const { data, loading, error, refetch } = useQuery<MyOrdersData>(GET_CHAT_ORDERS, {
-    fetchPolicy: 'network-only', // Luôn lấy mới để cập nhật trạng thái đơn
-    pollInterval: 10000, // Tự động cập nhật mỗi 10s (để xem có đơn mới ko)
-  });
+  const { data, loading, error, refetch } = useQuery<MyOrdersData>(
+    GET_CHAT_ORDERS,
+    {
+      fetchPolicy: 'network-only', // Luôn lấy mới để cập nhật trạng thái đơn
+      pollInterval: 10000, // Tự động cập nhật mỗi 10s (để xem có đơn mới ko)
+    },
+  );
 
   const orders = data?.myOrders || [];
+
+  // Merge fetched restaurant info into each order for display/navigation
+  const enrichedOrders = React.useMemo(() => {
+    return orders.map(o => {
+      const rid =
+        o.restaurantId ||
+        (o.restaurant && (o.restaurant.id || (o.restaurant as any)._id)) ||
+        null;
+      const cached = rid ? restaurants[rid] : undefined;
+      if (cached) {
+        return {
+          ...o,
+          restaurant: {
+            id: rid,
+            name: cached.name,
+            avatar: cached.avatar ?? '', // Ensure avatar is always a string
+          },
+        };
+      }
+      // Ensure avatar is always a string if restaurant exists
+      if (o.restaurant) {
+        return {
+          ...o,
+          restaurant: {
+            ...o.restaurant,
+            avatar: o.restaurant.avatar ?? '',
+          },
+        };
+      }
+      return o;
+    });
+  }, [orders, restaurants]);
+
+  const GET_RESTAURANT = gql`
+    query GetRestaurant($id: ID!) {
+      restaurant(id: $id) {
+        _id
+        name
+        image
+      }
+    }
+  `;
+
+  // Fetch missing restaurant info (name + image) for orders
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(orders.map(o => o.restaurantId).filter(Boolean)),
+    );
+    const missingIds = ids.filter(id => id && !restaurants[id]);
+    if (missingIds.length === 0) return;
+
+    (async () => {
+      try {
+        const promises = missingIds.map(id =>
+          client.query<{
+            restaurant: { _id: string; name: string; image?: string };
+          }>({
+            query: GET_RESTAURANT,
+            variables: { id },
+            fetchPolicy: 'network-only',
+          }),
+        );
+        const results = await Promise.all(promises);
+        const found: Record<string, { name: string; avatar?: string }> = {};
+        results.forEach((res, idx) => {
+          const id = missingIds[idx];
+          const r = res?.data?.restaurant;
+          if (r && id) {
+            found[id] = { name: r.name || '', avatar: r.image || '' };
+          }
+        });
+        if (Object.keys(found).length)
+          setRestaurants(prev => ({ ...prev, ...found }));
+      } catch (err) {
+        console.log('Fetch restaurants error', err);
+      }
+    })();
+  }, [orders, restaurants]);
 
   const goBack = () => navigation.goBack();
 
@@ -77,15 +160,21 @@ export default function MessageListScreen() {
     // Logic xác định người nhận:
     // Nếu đơn đang giao (shipping) hoặc đã giao (delivered) và có shipperId -> Chat với Shipper
     // Ngược lại -> Chat với Nhà hàng
-    const isShipperChat = item.shipperId && ['shipping', 'delivered', 'completed'].includes(item.status);
-    
-    const receiverId = isShipperChat ? item.shipperId : item.restaurant?.id;
-    const receiverName = isShipperChat ? "Tài xế Baemin" : item.restaurant?.name;
+    const isShipperChat =
+      item.shipperId &&
+      ['shipping', 'delivered', 'completed'].includes(item.status);
+
+    const receiverId = isShipperChat
+      ? item.shipperId
+      : item.restaurantId || item.restaurant?.id;
+    const receiverName = isShipperChat
+      ? 'Tài xế Baemin'
+      : item.restaurant?.name;
 
     navigation.navigate('ChatScreen', {
       orderId: item.id,
       receiverId: receiverId,
-      receiverName: receiverName
+      receiverName: receiverName,
     });
   };
 
@@ -102,46 +191,59 @@ export default function MessageListScreen() {
   };
 
   const renderItem = ({ item }: { item: OrderItem }) => {
+    const rid =
+      item.restaurantId || (item.restaurant && item.restaurant.id) || null;
+    const cached = rid ? restaurants[rid] : undefined;
     // Xử lý ảnh đại diện (Ưu tiên ảnh nhà hàng)
-    let avatarSource = IMAGES.pizza1; // Mặc định
-    
+    let avatarSource: any = IMAGES.pizza1; // Mặc định
+
     // Nếu đang chat với shipper (theo logic hiển thị) thì hiện icon shipper
     if (item.shipperId && ['shipping', 'delivered'].includes(item.status)) {
-         avatarSource = IMAGES.shipperIcon || IMAGES.shipper; // Icon shipper
-    } else if (item.restaurant?.avatar) {
-        // Ảnh nhà hàng
-        const uri = item.restaurant.avatar.startsWith('http') 
-            ? item.restaurant.avatar 
-            : `${BASE_URL}${item.restaurant.avatar}`;
-        avatarSource = { uri };
+      avatarSource = IMAGES.shipperIcon || IMAGES.shipper; // Icon shipper
+    } else if (cached?.avatar || item.restaurant?.avatar) {
+      const avatar = cached?.avatar || item.restaurant?.avatar;
+      const uri =
+        avatar && avatar.startsWith && avatar.startsWith('http')
+          ? avatar
+          : `${BASE_URL}${avatar}`;
+      avatarSource = { uri };
     }
 
     return (
-      <TouchableOpacity 
-        style={styles.chatItem} 
-        onPress={() => goToChat(item)}
-      >
+      <TouchableOpacity style={styles.chatItem} onPress={() => goToChat(item)}>
         <Image source={avatarSource} style={styles.avatar} />
-        
+
         <View style={styles.contentContainer}>
           <View style={styles.rowTop}>
             <Text style={styles.name} numberOfLines={1}>
-                {item.restaurant?.name || "Nhà hàng"}
+              {cached?.name || item.restaurant?.name || 'Nhà hàng'}
             </Text>
             <Text style={styles.time}>
-                {new Date(parseInt(item.createdAt)).toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'})}
+              {new Date(parseInt(item.createdAt)).toLocaleDateString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+              })}
             </Text>
           </View>
-          
+
           <View style={styles.rowBottom}>
             <Text style={styles.lastMessage} numberOfLines={1}>
-               Đơn hàng #{item.id.slice(-6)} - {getStatusLabel(item.status)}
+              Đơn hàng #{item.id.slice(-6)} - {getStatusLabel(item.status)}
             </Text>
-             {/* Indicator trạng thái đơn hàng (Màu sắc) */}
-             <View style={[styles.statusDot, { 
-                 backgroundColor: item.status === 'cancelled' ? 'red' : 
-                                  item.status === 'completed' ? 'green' : colors.primary 
-             }]} />
+            {/* Indicator trạng thái đơn hàng (Màu sắc) */}
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    item.status === 'cancelled'
+                      ? 'red'
+                      : item.status === 'completed'
+                      ? 'green'
+                      : colors.primary,
+                },
+              ]}
+            />
           </View>
         </View>
       </TouchableOpacity>
@@ -151,7 +253,7 @@ export default function MessageListScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
@@ -163,26 +265,32 @@ export default function MessageListScreen() {
 
       {/* CONTENT */}
       {loading && !orders.length ? (
-          <View style={styles.center}>
-              <ActivityIndicator size="large" color={colors.primary} />
-          </View>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       ) : (
-          <FlatList
-            data={orders}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.primary}/>
-            }
-            ListEmptyComponent={
-                <View style={styles.center}>
-                    <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
-                    <Text style={{color: '#888', marginTop: 10}}>Chưa có cuộc trò chuyện nào</Text>
-                </View>
-            }
-          />
+        <FlatList
+          data={enrichedOrders}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={refetch}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
+              <Text style={{ color: '#888', marginTop: 10 }}>
+                Chưa có cuộc trò chuyện nào
+              </Text>
+            </View>
+          }
+        />
       )}
     </SafeAreaView>
   );
@@ -194,10 +302,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   center: {
-      flex: 1, 
-      justifyContent: 'center', 
-      alignItems: 'center',
-      marginTop: 50
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
   },
   header: {
     flexDirection: 'row',
@@ -270,8 +378,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   statusDot: {
-      width: 8, 
-      height: 8, 
-      borderRadius: 4
-  }
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
 });
